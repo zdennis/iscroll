@@ -3,60 +3,74 @@
  * Released under MIT license, http://cubiq.org/license
  */
 (function (w, d, M) {
-	var
-	dummyStyle = d.createElement('div').style,
-	transform = (function () {
-		var vendors = 't,webkitT,MozT,msT,OT'.split(','),
-			transform,
-			i = 0,
-			l = vendors.length;
+	var dummyStyle = d.createElement('div').style,
+		now = (function () {
+			var perfNow = w.performance &&
+				(performance.now		||
+				performance.webkitNow	||
+				performance.mozNow		||
+				performance.msNow		||
+				performance.oNow);
 
-		for ( ; i < l; i++ ) {
-			transform = vendors[i] + 'ransform';
-			if ( transform in dummyStyle ) {
-				return transform;
+			return perfNow ?						// browser may support performance but not performance.now
+				perfNow.bind(w.performance) :
+				Date.now ?							// Date.now should be faster than getTime
+					Date.now :
+					function getTime () { return new Date().getTime(); };
+		})(),
+		transform = (function () {
+			var vendors = 't,webkitT,MozT,msT,OT'.split(','),
+				transform,
+				i = 0,
+				l = vendors.length;
+
+			for ( ; i < l; i++ ) {
+				transform = vendors[i] + 'ransform';
+				if ( transform in dummyStyle ) {
+					return transform;
+				}
 			}
-		}
 
-		return false;
-	})(),
-	vendor = transform !== false && transform.replace(/transform/i, ''),
-	cssVendor = vendor ? '-' + vendor + '-' : '',
-	transitionTimingFunction = prefixStyle('transitionTimingFunction'),
-	transitionDuration = prefixStyle('transitionDuration'),
+			return false;
+		})(),
+		vendor = transform !== false && transform.replace(/transform/i, ''),
+		cssVendor = vendor ? '-' + vendor + '-' : '',
+		transitionTimingFunction = prefixStyle('transitionTimingFunction'),
+		transitionDuration = prefixStyle('transitionDuration'),
 
-	has3d = prefixStyle('perspective') in dummyStyle,
-	hasTouch = 'ontouchstart' in w,
-	hasTransition = prefixStyle('transition') in dummyStyle,
+		has3d = prefixStyle('perspective') in dummyStyle,
+		hasTouch = 'ontouchstart' in w,
+		hasTransition = prefixStyle('transition') in dummyStyle,
 
-	translateZ = has3d ? ' translateZ(0)' : '',
+		translateZ = has3d ? ' translateZ(0)' : '',
 
-	isIOS = (/iphone|ipad/i).test(navigator.appVersion),
+		isIOS = (/iphone|ipad/i).test(navigator.appVersion),
 
-	eventStart = hasTouch ? 'touchstart' : 'mousedown',
-	eventMove = hasTouch ? 'touchmove' : 'mousemove',
-	eventEnd = hasTouch ? 'touchend' : 'mouseup',
-	eventCancel = hasTouch ? 'touchcancel' : 'mousecancel',
-	eventResize = isIOS && w.onorientationchange ? 'orientationchange' : 'resize',
-	eventTransitionEnd = (function () {
-		if ( vendor === false ) return;
+		eventStart = hasTouch ? 'touchstart' : 'mousedown',
+		eventMove = hasTouch ? 'touchmove' : 'mousemove',
+		eventEnd = hasTouch ? 'touchend' : 'mouseup',
+		eventCancel = hasTouch ? 'touchcancel' : 'mousecancel',
+		// iOS seems the only one with a reliable orientationchange event, fall to resize for all the others
+		eventResize = isIOS && w.onorientationchange ? 'orientationchange' : 'resize',
+		eventTransitionEnd = (function () {
+			if ( vendor === false ) return;
 
-		var transitionEnd = {
-				''			: 'transitionend',
-				'webkit'	: 'webkitTransitionEnd',
-				'Moz'		: 'transitionend',
-				'O'			: 'oTransitionEnd',
-				'ms'		: 'MSTransitionEnd'
-			};
+			var transitionEnd = {
+					''			: 'transitionend',
+					'webkit'	: 'webkitTransitionEnd',
+					'Moz'		: 'transitionend',
+					'O'			: 'oTransitionEnd',
+					'ms'		: 'MSTransitionEnd'
+				};
 
-		return transitionEnd[vendor];
-	})();
+			return transitionEnd[vendor];
+		})();
 
-	function bind (el, type, fn, capture) {
+	function addEvent (el, type, fn, capture) {
 		el.addEventListener(type, fn, !!capture);
 	}
 
-	function unbind (el, type, fn, capture) {
+	function removeEvent (el, type, fn, capture) {
 		el.removeEventListener(type, fn, !!capture);
 	}
 
@@ -118,13 +132,13 @@
 
 		this.refresh();
 
-		bind(w, eventResize, this);
-		bind(this.wrapper, eventStart, this);
-		bind(this.scroller, eventTransitionEnd, this);
+		addEvent(w, eventResize, this);
+		addEvent(this.wrapper, eventStart, this);
+		addEvent(this.scroller, eventTransitionEnd, this);
 
 		if ( !hasTouch ) {
-			bind(w, 'DOMMouseScroll', this);
-			bind(w, 'mousewheel', this);
+			addEvent(w, 'DOMMouseScroll', this);
+			addEvent(w, 'mousewheel', this);
 		}
 	}
 
@@ -167,11 +181,11 @@
 			this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
 			this.maxScrollY		= this.wrapperHeight - this.scrollerHeight;
 
-			this.hasHorScroll	= this.options.scrollX && this.maxScrollX < 0;
-			this.hasVerScroll	= this.options.scrollY && this.maxScrollY < 0;
+			this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
+			this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
 
-			if ( this.hasHorScroll ) this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
-			if ( this.hasVerScroll ) this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
+			if ( this.hasHorizontalScroll ) this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
+			if ( this.hasVerticalScroll ) this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
 
 			this.resetPosition(0);
 			// this.__transitionTime(0);
@@ -183,16 +197,16 @@
 		},
 
 		__pos: function (x, y) {
-			x = this.hasHorScroll ? x : 0;
-			y = this.hasVerScroll ? y : 0;
+			x = this.hasHorizontalScroll ? x : 0;
+			y = this.hasVerticalScroll ? y : 0;
 
 			this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px)' + translateZ;
 
 			this.x = x;
 			this.y = y;
 
-			if ( this.hasHorScroll ) this.hScrollbar.pos(this.x);
-			if ( this.hasVerScroll ) this.vScrollbar.pos(this.y);
+			if ( this.hasHorizontalScroll ) this.hScrollbar.pos(this.x);
+			if ( this.hasVerticalScroll ) this.vScrollbar.pos(this.y);
 		},
 
 		__transitionEnd: function (e) {
@@ -232,11 +246,11 @@
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
 
-			this.startTime	= e.timeStamp || new Date().getTime();
+			this.startTime	= now();
 
-			bind(this.wrapper, eventMove, this);
-			bind(this.wrapper, eventCancel, this);
-			bind(this.wrapper, eventEnd, this);
+			addEvent(this.wrapper, eventMove, this);
+			addEvent(this.wrapper, eventCancel, this);
+			addEvent(this.wrapper, eventEnd, this);
 		},
 
 		__move: function (e) {
@@ -245,7 +259,7 @@
 				deltaY		= point.pageY - this.pointY,
 				newX		= this.x + deltaX,
 				newY		= this.y + deltaY,
-				timestamp	= e.timeStamp || new Date().getTime();
+				timestamp	= now();
 
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
@@ -294,20 +308,20 @@
 			var point = hasTouch ? e.changedTouches[0] : e,
 				momentumX,
 				momentumY,
-				duration = ( e.timeStamp || new Date().getTime() ) - this.startTime,
+				duration = now() - this.startTime,
 				newX = 0,
 				newY = 0,
 				ev;
 
-			unbind(this.wrapper, eventMove, this);
-			unbind(this.wrapper, eventCancel, this);
-			unbind(this.wrapper, eventEnd, this);
+			removeEvent(this.wrapper, eventMove, this);
+			removeEvent(this.wrapper, eventCancel, this);
+			removeEvent(this.wrapper, eventEnd, this);
 
 			if ( this.resetPosition(300) ) return;
 
 			if ( duration < 300 && this.options.momentum ) {
-				momentumX = this.hasHorScroll ? this.__momentum(this.x, this.startX, duration, this.maxScrollX, this.wrapperWidth) : { destination:0, duration:0 };
-				momentumY = this.hasVerScroll ? this.__momentum(this.y, this.startY, duration, this.maxScrollY, this.wrapperHeight) : { destination:0, duration:0 };
+				momentumX = this.hasHorizontalScroll ? this.__momentum(this.x, this.startX, duration, this.maxScrollX, this.wrapperWidth) : { destination:0, duration:0 };
+				momentumY = this.hasVerticalScroll ? this.__momentum(this.y, this.startY, duration, this.maxScrollY, this.wrapperHeight) : { destination:0, duration:0 };
 
 				if ( newX != this.x || newY != this.y )
 					this.scrollTo(momentumX.destination, momentumY.destination, M.max(momentumX.duration, momentumY.duration));
@@ -342,8 +356,8 @@
 			time = time || 0;
 			this.scroller.style[transitionDuration] = time + 'ms';
 
-			if ( this.hasHorScroll ) this.hScrollbar.transitionTime(time);
-			if ( this.hasVerScroll ) this.vScrollbar.transitionTime(time);
+			if ( this.hasHorizontalScroll ) this.hScrollbar.transitionTime(time);
+			if ( this.hasVerticalScroll ) this.vScrollbar.transitionTime(time);
 		},
 
 		__wheel: function (e) {
@@ -460,4 +474,4 @@
 	dummyStyle = null;	// free some mem?
 
 	w.iScroll = iScroll;
-})(this, document, Math);
+})(window, document, Math);
