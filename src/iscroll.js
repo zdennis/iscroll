@@ -40,16 +40,17 @@
 
 		has3d = prefixStyle('perspective') in dummyStyle,
 		hasTouch = 'ontouchstart' in w,
+		hasPointer = navigator.msPointerEnabled,
 		hasTransition = prefixStyle('transition') in dummyStyle,
 
 		translateZ = has3d ? ' translateZ(0)' : '',
 
 		isIOS = (/iphone|ipad/i).test(navigator.appVersion),
 
-		eventStart = hasTouch ? 'touchstart' : 'mousedown',
-		eventMove = hasTouch ? 'touchmove' : 'mousemove',
-		eventEnd = hasTouch ? 'touchend' : 'mouseup',
-		eventCancel = hasTouch ? 'touchcancel' : 'mousecancel',
+		eventStart = hasTouch ? 'touchstart' : hasPointer ? 'MSPointerDown' : 'mousedown',
+		eventMove = hasTouch ? 'touchmove' : hasPointer ? 'MSPointerMove' : 'mousemove',
+		eventEnd = hasTouch ? 'touchend' : hasPointer ? 'MSPointerUp' : 'mouseup',
+		eventCancel = hasTouch ? 'touchcancel' : hasPointer ? 'MSPointerCancel' : 'mousecancel',
 		// iOS seems the only one with a reliable orientationchange event, fall to resize for all the others
 		eventResize = isIOS && w.onorientationchange ? 'orientationchange' : 'resize',
 		eventTransitionEnd = (function () {
@@ -232,9 +233,9 @@
 
 			if ( this.options.momentum ) {
 				// Lame alternative to CSSMatrix
-				matrix = w.getComputedStyle(this.scroller, null)[transform].replace(/[^0-9\-.,]/g, '').split(',');
-				x = +matrix[4];
-				y = +matrix[5];
+				matrix = getComputedStyle(this.scroller, null)[transform].replace(/[^0-9\-.,]/g, '').split(',');
+				x = +(matrix[12] || matrix[4]);
+				y = +(matrix[13] || matrix[5]);
 
 				if ( x != this.x || y != this.y ) {
 					this.__pos(x, y);
