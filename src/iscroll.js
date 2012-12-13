@@ -104,12 +104,20 @@
 			useTransition: true,
 			momentum: true,
 
-			scrollbars: true
+			scrollbars: true,
+			draggableScrollbars: true,
+
+			mouseWheel: true,
+			wheelInvertX: false,
+			wheelInvertY: false
+			//wheelInvertAxes: false	TODO: vertical wheel scrolls horizontally
 		};
 
 		for (i in options) this.options[i] = options[i];
 
 		this.options.useTransition = hasTransition && this.options.useTransition;
+		this.options.wheelInvertX = this.options.wheelInvertX ? -1 : 1;
+		this.options.wheelInvertY = this.options.wheelInvertY ? -1 : 1;
 
 		this.x = this.options.startX;
 		this.y = this.options.startY;
@@ -118,17 +126,19 @@
 		if ( this.options.scrollbars === true ) {
 			// Vertical scrollbar wrapper
 			sb = d.createElement('div');
-			sb.style.cssText = 'pointer-events:none;position:absolute;z-index:1;width:7px;bottom:2px;top:2px;bottom:2px;right:1px';
+			sb.style.cssText = 'position:absolute;z-index:1;width:7px;bottom:2px;top:2px;bottom:2px;right:1px';
+			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
 			sb.className = 'iSVerticalScrollbar';
 			this.wrapper.appendChild(sb);
-			this.vScrollbar = new Scrollbar(sb, 'v', this.wrapper);
+			this.vScrollbar = new Scrollbar(sb, this);
 
 			// Horizontal scrollbar wrapper
 			sb = d.createElement('div');
-			sb.style.cssText = 'pointer-events:none;position:absolute;z-index:1;height:7px;left:2px;right:2px;bottom:1px';
+			sb.style.cssText = 'position:absolute;z-index:1;height:7px;left:2px;right:2px;bottom:1px';
+			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
 			sb.className = 'iSHorizontalScrollbar';
 			this.wrapper.appendChild(sb);
-			this.hScrollbar = new Scrollbar(sb);
+			this.hScrollbar = new Scrollbar(sb, this);
 		}
 
 		this.refresh();
@@ -137,7 +147,7 @@
 		addEvent(this.wrapper, eventStart, this);
 		addEvent(this.scroller, eventTransitionEnd, this);
 
-		if ( !hasTouch ) {
+		if ( this.options.mouseWheel && !hasTouch ) {
 			addEvent(w, 'DOMMouseScroll', this);
 			addEvent(w, 'mousewheel', this);
 		}
@@ -145,7 +155,7 @@
 
 	iScroll.prototype = {
 		handleEvent: function (e) {
-			switch(e.type) {
+			switch ( e.type ) {
 				case eventStart:
 					if ( !hasTouch && e.button !== 0 ) return;
 					this.__start(e);
@@ -237,9 +247,7 @@
 				x = +(matrix[12] || matrix[4]);
 				y = +(matrix[13] || matrix[5]);
 
-				if ( x != this.x || y != this.y ) {
-					this.__pos(x, y);
-				}
+				if ( x != this.x || y != this.y ) this.__pos(x, y);
 			}
 
 			this.startX		= this.x;
@@ -375,9 +383,9 @@
 			} else {
 				return;
 			}
-			
-			deltaX = this.x + wheelDeltaX;
-			deltaY = this.y + wheelDeltaY;
+
+			deltaX = this.x + wheelDeltaX * this.options.wheelInvertX;
+			deltaY = this.y + wheelDeltaY * this.options.wheelInvertY;
 
 			if ( deltaX > 0 ) deltaX = 0;
 			else if ( deltaX < this.maxScrollX ) deltaX = this.maxScrollX;
@@ -419,16 +427,17 @@
 		}
 	};
 
-	function Scrollbar (el) {
+	function Scrollbar (el, scroller) {
 		var indicator;
 
 		this.wrapper = typeof el == 'string' ? d.querySelector(el) : el;
+		this.scroller = scroller;
 
 		this.direction = this.wrapper.clientWidth > this.wrapper.clientHeight ? 'h' : 'v';
 
 		indicator = d.createElement('div');
 		indicator.className = 'iSIndicator';
-		indicator.style.cssText = cssVendor + 'box-sizing:border-box;position:absolute;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.9);' + cssVendor + 'border-radius:3px';
+		indicator.style.cssText = cssVendor + 'box-sizing:border-box;position:absolute;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.9);border-radius:3px';
 		indicator.style[transform] = translateZ;
 		indicator.style[transitionTimingFunction] = 'cubic-bezier(0.33,0.66,0.66,1)';
 
@@ -443,22 +452,127 @@
 		this.wrapperSize = 0;
 		this.indicatorSize = 0;
 		this.sizeRatio = 0;
+
+		addEvent(indicator, eventStart, this);
+		addEvent(indicator, 'mouseover', this);
+		addEvent(indicator, 'mouseout', this);
 	}
 
 	Scrollbar.prototype = {
-		refresh: function (size, maxScroll, position) {
-			var property = this.direction == 'h' ? 'width' : 'height';
+		handleEvent: function (e) {
+			switch ( e.type ) {
+				case eventStart:
+					if ( !hasTouch && e.button !== 0 ) return;
+					this.__start(e);
+					break;
+				case eventMove:
+					this.__move(e);
+					break;
+				case eventEnd:
+				case eventCancel:
+					this.__end(e);
+					break;
+				case 'mouseover':
+					this.__hover();
+					break;
+				case 'mouseout':
+					this.__out();
+					break;
+			}
+		},
 
+		__hover: function () {
+			this.wrapper.style[transitionDuration] = '0.1s';
+			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '12px';
+			this.indicator.style[transitionDuration] = '0.1s';
+			this.indicator.style.borderRadius = '6px';
+		},
+
+		__out: function () {
+			if ( this.initiated ) return;
+
+			this.wrapper.style[transitionDuration] = '0.1s';
+			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '7px';
+			this.indicator.style[transitionDuration] = '0.1s';
+			this.indicator.style.borderRadius = '3px';	
+		},
+
+		__start: function (e) {
+			var point = hasTouch ? e.touches[0] : e,
+				matrix,
+				x, y;
+
+			e.preventDefault();
+			e.stopPropagation();
+
+			this.initiated	= true;
+			this.dist		= 0;
+
+			this.transitionTime(0);
+
+			this.pointPos	= this.direction == 'h' ? point.pageX : point.pageY;
+			this.startTime	= now();
+
+			addEvent(w, eventMove, this);
+			addEvent(w, eventEnd, this);
+		},
+
+		__move: function (e) {
+			var point = hasTouch ? e.touches[0] : e,
+				delta, newPos,
+				timestamp = now();
+
+			if ( this.direction == 'h' ) {
+				delta = point.pageX - this.pointPos;
+				this.pointPos = point.pageX;
+			} else {
+				delta = point.pageY - this.pointPos;
+				this.pointPos = point.pageY;
+			}
+
+			newPos = this.position + delta;
+
+			this.__pos(newPos);
+
+			// TODO: check if the following is needed
+			// e.preventDefault();
+			// e.stopPropagation();
+		},
+
+		__end: function (e) {
+			removeEvent(w, eventMove, this);
+			removeEvent(w, eventEnd, this);
+
+			this.initiated = false;
+
+			if ( e.target != this.indicator ) {
+				this.__out();
+			}
+
+			// TODO: check if the following is needed
+			// e.preventDefault();
+			// e.stopPropagation();
+		},
+
+		refresh: function (size, maxScroll, position) {
 			this.wrapperSize = this.direction == 'h' ? this.wrapper.clientWidth : this.wrapper.clientHeight;
 			this.indicatorSize = M.max(M.round(this.wrapperSize * this.wrapperSize / size), 8);
-			this.indicator.style[property] = this.indicatorSize + 'px';
+			this.indicator.style[this.direction == 'h' ? 'width' : 'height'] = this.indicatorSize + 'px';
 			this.maxPos = this.wrapperSize - this.indicatorSize;
 			this.sizeRatio = this.maxPos / maxScroll;
 			this.pos(position);
 		},
 
+		__pos: function (position) {
+			if ( position < 0 ) position = 0;
+			else if ( position > this.maxPos ) position = this.maxPos;
+
+			this.scroller.scrollTo(0, M.round(position / this.sizeRatio), 0);
+		},
+
 		pos: function (position) {
-			position = this.sizeRatio * position;
+			position = M.round(this.sizeRatio * position);
+			this.position = position;
 
 			if ( position < 0 ) position = 0;
 			else if ( position > this.maxPos ) position = this.maxPos;
