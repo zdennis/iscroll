@@ -4,20 +4,28 @@
  */
 (function (w, d, M) {
 	var dummyStyle = d.createElement('div').style,
+		// it seems event.timestamp is not that reliable, so we use the best alternative we can find
 		now = (function () {
-			var perfNow = w.performance &&
+			var perfNow = w.performance &&			// browser may support performance but not performance.now
 				(performance.now		||
 				performance.webkitNow	||
 				performance.mozNow		||
 				performance.msNow		||
 				performance.oNow);
 
-			return perfNow ?						// browser may support performance but not performance.now
+			return perfNow ?
 				perfNow.bind(w.performance) :
 				Date.now ?							// Date.now should be faster than getTime
 					Date.now :
 					function getTime () { return new Date().getTime(); };
 		})(),
+		// rAF is used if useTransition is false
+		rAF = w.requestAnimationFrame		||
+			w.webkitRequestAnimationFrame	||
+			w.mozRequestAnimationFrame		||
+			w.oRequestAnimationFrame		||
+			w.msRequestAnimationFrame		||
+			function (callback) { w.setTimeout(callback, 1000 / 60); },
 		transform = (function () {
 			var vendors = 't,webkitT,MozT,msT,OT'.split(','),
 				transform,
@@ -39,8 +47,8 @@
 		transitionDuration = prefixStyle('transitionDuration'),
 
 		has3d = prefixStyle('perspective') in dummyStyle,
-		hasTouch = 'ontouchstart' in w,
 		hasPointer = navigator.msPointerEnabled,
+		hasTouch = 'ontouchstart' in w,
 		hasTransition = prefixStyle('transition') in dummyStyle,
 		hasTransform = !!transform,
 
@@ -54,6 +62,7 @@
 		eventCancel = hasTouch ? 'touchcancel' : hasPointer ? 'MSPointerCancel' : 'mousecancel',
 		// iOS seems the only one with a reliable orientationchange event, fall to resize for all the others
 		eventResize = isIOS && w.onorientationchange ? 'orientationchange' : 'resize',
+		// there's no standard way to find the name of the transitionend event, so we selected it based on the vendor
 		eventTransitionEnd = (function () {
 			if ( vendor === false ) return;
 
@@ -102,9 +111,10 @@
 			scrollX: true,
 			scrollY: true,
 			lockDirection: true,
+			momentum: true,
+
 			useTransition: true,
 			useTransform: true,
-			momentum: true,
 
 			scrollbars: true,
 			draggableScrollbars: true,
@@ -185,7 +195,7 @@
 		},
 
 		refresh: function () {
-			this.wrapper.offsetHeight;	// Force refresh 
+			this.wrapper.offsetHeight;	// Force refresh (linters hate this)
 
 			this.wrapperWidth	= this.wrapper.clientWidth;
 			this.wrapperHeight	= this.wrapper.clientHeight;
@@ -525,7 +535,7 @@
 			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '7px';
 			this.wrapper.style.backgroundColor = 'transparent';
 			this.indicator.style[transitionDuration] = '0.1s';
-			this.indicator.style.borderRadius = '3px';	
+			this.indicator.style.borderRadius = '3px';
 		},
 
 		__start: function (e) {
