@@ -42,6 +42,7 @@
 		hasTouch = 'ontouchstart' in w,
 		hasPointer = navigator.msPointerEnabled,
 		hasTransition = prefixStyle('transition') in dummyStyle,
+		hasTransform = !!transform,
 
 		translateZ = has3d ? ' translateZ(0)' : '',
 
@@ -102,6 +103,7 @@
 			scrollY: true,
 			lockDirection: true,
 			useTransition: true,
+			useTransform: true,
 			momentum: true,
 
 			scrollbars: true,
@@ -110,12 +112,13 @@
 			mouseWheel: true,
 			wheelInvertX: false,
 			wheelInvertY: false
-			//wheelInvertAxes: false	TODO: vertical wheel scrolls horizontally
+			//wheelSwitchAxes: false	TODO: vertical wheel scrolls horizontally
 		};
 
-		for (i in options) this.options[i] = options[i];
+		for ( i in options ) this.options[i] = options[i];
 
 		this.options.useTransition = hasTransition && this.options.useTransition;
+		this.options.useTransform = hasTransform && this.options.useTransform;
 		this.options.wheelInvertX = this.options.wheelInvertX ? -1 : 1;
 		this.options.wheelInvertY = this.options.wheelInvertY ? -1 : 1;
 
@@ -123,10 +126,11 @@
 		this.y = this.options.startY;
 
 		if ( this.options.useTransition ) this.scroller.style[transitionTimingFunction] = 'cubic-bezier(0.33,0.66,0.66,1)';
+
 		if ( this.options.scrollbars === true ) {
 			// Vertical scrollbar wrapper
 			sb = d.createElement('div');
-			sb.style.cssText = 'position:absolute;z-index:1;width:7px;bottom:2px;top:2px;bottom:2px;right:1px';
+			sb.style.cssText = 'position:absolute;z-index:1;width:7px;bottom:2px;top:2px;right:1px';
 			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
 			sb.className = 'iSVerticalScrollbar';
 			this.wrapper.appendChild(sb);
@@ -134,7 +138,7 @@
 
 			// Horizontal scrollbar wrapper
 			sb = d.createElement('div');
-			sb.style.cssText = 'position:absolute;z-index:1;height:7px;left:2px;right:2px;bottom:1px';
+			sb.style.cssText = 'position:absolute;z-index:1;height:7px;left:2px;right:2px;bottom:0';
 			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
 			sb.className = 'iSHorizontalScrollbar';
 			this.wrapper.appendChild(sb);
@@ -211,7 +215,14 @@
 			x = this.hasHorizontalScroll ? x : 0;
 			y = this.hasVerticalScroll ? y : 0;
 
-			this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px)' + translateZ;
+			if ( this.options.useTransform ) {
+				this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px)' + translateZ;
+			} else {
+				x = M.round(x);
+				y = M.round(y);
+				this.scroller.style.left = x + 'px';
+				this.scroller.style.top = y + 'px';
+			}
 
 			this.x = x;
 			this.y = y;
@@ -242,10 +253,17 @@
 			this.__transitionTime(0);
 
 			if ( this.options.momentum ) {
-				// Lame alternative to CSSMatrix
-				matrix = getComputedStyle(this.scroller, null)[transform].replace(/[^0-9\-.,]/g, '').split(',');
-				x = +(matrix[12] || matrix[4]);
-				y = +(matrix[13] || matrix[5]);
+				matrix = getComputedStyle(this.scroller, null);
+
+				if ( this.options.useTransform ) {
+					// Lame alternative to CSSMatrix
+					matrix = matrix[transform].replace(/[^-\d.,]/g, '').split(',');
+					x = +(matrix[12] || matrix[4]);
+					y = +(matrix[13] || matrix[5]);
+				} else {
+					x = +matrix.left.replace(/[^-\d.]/g, '');
+					y = +matrix.top.replace(/[^-\d.]/g, '');
+				}
 
 				if ( x != this.x || y != this.y ) this.__pos(x, y);
 			}
@@ -415,8 +433,7 @@
 				y = this.maxScrollY;
 			}
 
-			this.__transitionTime(time);
-			this.__pos(x, y);
+			this.scrollTo(x, y, time);
 
 			return true;
 		},
@@ -424,6 +441,18 @@
 		scrollTo: function (x, y, time) {
 			this.__transitionTime(time);
 			this.__pos(x, y);
+		},
+
+		scrollBy: function (x, y, time) {
+			x = this.x + x;
+			y = this.y + y;
+			time = time || 0;
+
+			this.scrollTo(x, y, time);
+		},
+
+		scrollToElement: function () {
+			// TODO
 		}
 	};
 
@@ -454,8 +483,8 @@
 		this.sizeRatio = 0;
 
 		addEvent(indicator, eventStart, this);
-		addEvent(indicator, 'mouseover', this);
-		addEvent(indicator, 'mouseout', this);
+		addEvent(this.wrapper, 'mouseover', this);
+		addEvent(this.wrapper, 'mouseout', this);
 	}
 
 	Scrollbar.prototype = {
@@ -482,10 +511,11 @@
 		},
 
 		__hover: function () {
-			this.wrapper.style[transitionDuration] = '0.1s';
-			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '12px';
-			this.indicator.style[transitionDuration] = '0.1s';
-			this.indicator.style.borderRadius = '6px';
+			this.wrapper.style[transitionDuration] = '0.15s';
+			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '14px';
+			this.wrapper.style.backgroundColor = 'rgba(0,0,0,0.3)';
+			this.indicator.style[transitionDuration] = '0.15s';
+			this.indicator.style.borderRadius = '7px';
 		},
 
 		__out: function () {
@@ -493,6 +523,7 @@
 
 			this.wrapper.style[transitionDuration] = '0.1s';
 			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '7px';
+			this.wrapper.style.backgroundColor = 'transparent';
 			this.indicator.style[transitionDuration] = '0.1s';
 			this.indicator.style.borderRadius = '3px';	
 		},
@@ -555,11 +586,16 @@
 		},
 
 		refresh: function (size, maxScroll, position) {
+			this.transitionTime(0);
+
 			this.wrapperSize = this.direction == 'h' ? this.wrapper.clientWidth : this.wrapper.clientHeight;
+
 			this.indicatorSize = M.max(M.round(this.wrapperSize * this.wrapperSize / size), 8);
 			this.indicator.style[this.direction == 'h' ? 'width' : 'height'] = this.indicatorSize + 'px';
+
 			this.maxPos = this.wrapperSize - this.indicatorSize;
 			this.sizeRatio = this.maxPos / maxScroll;
+			
 			this.pos(position);
 		},
 
@@ -577,7 +613,11 @@
 			if ( position < 0 ) position = 0;
 			else if ( position > this.maxPos ) position = this.maxPos;
 
-			this.indicator.style[transform] = 'translate(' + (this.direction == 'h' ? position + 'px,0' : '0,' + position + 'px') + ')' + translateZ;
+			if ( this.scroller.options.useTransform ) {
+				this.indicator.style[transform] = 'translate(' + (this.direction == 'h' ? position + 'px,0' : '0,' + position + 'px') + ')' + translateZ;
+			} else {
+				this.indicator.style[(this.direction == 'h' ? 'left' : 'top')] = position + 'px';
+			}
 		},
 
 		transitionTime: function (time) {
