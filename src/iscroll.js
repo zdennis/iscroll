@@ -5,7 +5,7 @@
 (function (w, d, M) {
 	var dummyStyle = d.createElement('div').style,
 		// it seems event.timestamp is not that reliable, so we use the best alternative we can find
-		now = (function () {
+		getTime = (function () {
 			var perfNow = w.performance &&			// browser may support performance but not performance.now
 				(performance.now		||
 				performance.webkitNow	||
@@ -101,13 +101,6 @@
 		this.options = {
 			startX: 0,
 			startY: 0,
-/*			bounceFn: function (k) {
-				var s = 3.5;
-				return --k * k * ( ( s + 1 ) * k + s ) + 1;
-			},
-			decelerationFn: function (k) {
-				return M.sqrt(1 - ( --k * k ));		// Circular Out easing
-			},*/
 			scrollX: true,
 			scrollY: true,
 			lockDirection: true,
@@ -217,6 +210,39 @@
 			// this.__pos(this.x, this.y);
 		},
 
+		__animate: function (destX, destY, duration) {
+			var that = this,
+				startX = this.x,
+				startY = this.y,
+				startTime = getTime(),
+				destTime = startTime + duration;
+
+			function step () {
+				var now = getTime(),
+					newX,
+					newY,
+					easing;
+
+				if ( now >= destTime ) {
+					this.isRAFing = false;
+					that.__pos(destX, destY);
+					that.resetPosition(435);
+					return;
+				}
+
+				now = ( now - startTime ) / duration - 1;
+				easing = M.sqrt( 1 - now * now );
+				newX = ( destX - startX ) * easing + startX;
+				newY = ( destY - startY ) * easing + startY;
+				that.__pos(newX, newY);
+
+				if ( that.isRAFing ) rAF(step);
+			}
+
+			this.isRAFing = true;
+			step();
+		},
+
 		__resize: function () {
 			this.refresh();
 		},
@@ -261,6 +287,7 @@
 			this.directionY	= 0;
 
 			this.__transitionTime(0);
+			this.isRAFing = false;		// stop the rAF animation (only with useTransition:false)
 
 			if ( this.options.momentum ) {
 				matrix = getComputedStyle(this.scroller, null);
@@ -283,7 +310,7 @@
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
 
-			this.startTime	= now();
+			this.startTime	= getTime();
 
 			addEvent(this.wrapper, eventMove, this);
 			addEvent(this.wrapper, eventCancel, this);
@@ -296,7 +323,7 @@
 				deltaY		= point.pageY - this.pointY,
 				newX		= this.x + deltaX,
 				newY		= this.y + deltaY,
-				timestamp	= now();
+				timestamp	= getTime();
 
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
@@ -345,7 +372,7 @@
 			var point = hasTouch ? e.changedTouches[0] : e,
 				momentumX,
 				momentumY,
-				duration = now() - this.startTime,
+				duration = getTime() - this.startTime,
 				newX = 0,
 				newY = 0,
 				ev;
@@ -449,8 +476,12 @@
 		},
 
 		scrollTo: function (x, y, time) {
-			this.__transitionTime(time);
-			this.__pos(x, y);
+			if ( !time || this.options.useTransition ) {
+				this.__transitionTime(time);
+				this.__pos(x, y);
+			} else {
+				this.__animate(x, y, time);
+			}
 		},
 
 		scrollBy: function (x, y, time) {
@@ -552,7 +583,7 @@
 			this.transitionTime(0);
 
 			this.pointPos	= this.direction == 'h' ? point.pageX : point.pageY;
-			this.startTime	= now();
+			this.startTime	= getTime();
 
 			addEvent(w, eventMove, this);
 			addEvent(w, eventEnd, this);
@@ -561,7 +592,7 @@
 		__move: function (e) {
 			var point = hasTouch ? e.touches[0] : e,
 				delta, newPos,
-				timestamp = now();
+				timestamp = getTime();
 
 			if ( this.direction == 'h' ) {
 				delta = point.pageX - this.pointPos;
