@@ -45,6 +45,7 @@
 		cssVendor = vendor ? '-' + vendor + '-' : '',
 		transitionTimingFunction = prefixStyle('transitionTimingFunction'),
 		transitionDuration = prefixStyle('transitionDuration'),
+		transformOrigin = prefixStyle('transformOrigin'),
 
 		has3d = prefixStyle('perspective') in dummyStyle,
 		hasPointer = navigator.msPointerEnabled,
@@ -62,7 +63,7 @@
 		eventCancel = hasTouch ? 'touchcancel' : hasPointer ? 'MSPointerCancel' : 'mousecancel',
 		// iOS seems the only one with a reliable orientationchange event, fall to resize for all the others
 		eventResize = isIOS && w.onorientationchange ? 'orientationchange' : 'resize',
-		// there's no standard way to find the name of the transitionend event, so we selected it based on the vendor
+		// there's no standard way to find the name of the transitionend event, so we select it based on the vendor
 		eventTransitionEnd = (function () {
 			if ( vendor === false ) return;
 
@@ -97,6 +98,7 @@
 
 		this.wrapper = typeof el == 'string' ? d.querySelector(el) : el;
 		this.scroller = this.wrapper.children[0];
+		this.scroller.style[transformOrigin] = '0 0';
 
 		this.options = {
 			startX: 0,
@@ -104,8 +106,10 @@
 			scrollX: true,
 			scrollY: true,
 			lockDirection: true,
+			//bounce: true,				TODO: remove scroller bouncing
 			momentum: true,
 
+			HWCompositing: true,		// mostly a debug thing
 			useTransition: true,
 			useTransform: true,
 
@@ -113,20 +117,25 @@
 			draggableScrollbars: true,
 
 			mouseWheel: true,
-			wheelInvertX: false,
-			wheelInvertY: false
-			//wheelSwitchAxes: false	TODO: vertical wheel scrolls horizontally
+			wheelInvertDirection: false,
+			//wheelSwitchAxes: false,	TODO: vertical wheel scrolls horizontally
+			//wheelAction: 'scroll',	TODO: zoom with mouse wheel
+
+			zoom: true,
+			zoomMin: 1,
+			zoomMax: 3
 		};
 
 		for ( i in options ) this.options[i] = options[i];
 
+		if ( !this.options.HWCompositing ) translateZ = '';
 		this.options.useTransition = hasTransition && this.options.useTransition;
 		this.options.useTransform = hasTransform && this.options.useTransform;
-		this.options.wheelInvertX = this.options.wheelInvertX ? -1 : 1;
-		this.options.wheelInvertY = this.options.wheelInvertY ? -1 : 1;
+		this.options.wheelInvertDirection = this.options.wheelInvertDirection ? -1 : 1;
 
 		this.x = this.options.startX;
 		this.y = this.options.startY;
+		this.scale = 1;
 
 		if ( this.options.useTransition ) this.scroller.style[transitionTimingFunction] = 'cubic-bezier(0.33,0.66,0.66,1)';
 
@@ -154,6 +163,10 @@
 		addEvent(this.wrapper, eventStart, this);
 		addEvent(this.scroller, eventTransitionEnd, this);
 
+		addEvent(w, eventMove, this);
+		addEvent(w, eventCancel, this);
+		addEvent(w, eventEnd, this);
+
 		if ( this.options.mouseWheel && !hasTouch ) {
 			addEvent(w, 'DOMMouseScroll', this);
 			addEvent(w, 'mousewheel', this);
@@ -168,7 +181,11 @@
 					this.__start(e);
 					break;
 				case eventMove:
-					this.__move(e);
+					if ( this.options.zoom && this.phase == 'zoom' ) {
+						this.__zoom(e);
+					} else {
+						this.__move(e);
+					}
 					break;
 				case eventEnd:
 				case eventCancel:
@@ -193,8 +210,8 @@
 			this.wrapperWidth	= this.wrapper.clientWidth;
 			this.wrapperHeight	= this.wrapper.clientHeight;
 
-			this.scrollerWidth	= this.scroller.offsetWidth;
-			this.scrollerHeight	= this.scroller.offsetHeight;
+			this.scrollerWidth	= M.round(this.scroller.offsetWidth * this.scale);
+			this.scrollerHeight	= M.round(this.scroller.offsetHeight * this.scale);
 
 			this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
 			this.maxScrollY		= this.wrapperHeight - this.scrollerHeight;
@@ -252,7 +269,7 @@
 			y = this.hasVerticalScroll ? y : 0;
 
 			if ( this.options.useTransform ) {
-				this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px)' + translateZ;
+				this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ')' + translateZ;
 			} else {
 				x = M.round(x);
 				y = M.round(y);
@@ -276,7 +293,10 @@
 		__start: function (e) {
 			var point = hasTouch ? e.touches[0] : e,
 				matrix,
-				x, y;
+				x, y,
+				c1, c2;
+
+			if ( hasTouch ) this.phase = e.touches.length < 2 ? 'scroll' : 'zoom';
 
 			this.moved		= false;
 			this.distX		= 0;
@@ -288,6 +308,16 @@
 
 			this.__transitionTime(0);
 			this.isRAFing = false;		// stop the rAF animation (only with useTransition:false)
+
+			if ( this.options.zoom && this.phase == 'zoom' ) {
+				c1 = M.abs( point.pageX - e.touches[1].pageX );
+				c2 = M.abs( point.pageY - e.touches[1].pageY );
+				this.touchesDistanceStart = M.sqrt(c1 * c1 + c2 * c2);
+				this.startScale = this.scale;
+
+				this.originX = M.abs(point.pageX + e.touches[1].pageX - 0 * 2) / 2 - this.x;
+				this.originY = M.abs(point.pageY + e.touches[1].pageY - 0 * 2) / 2 - this.y;
+			}
 
 			if ( this.options.momentum ) {
 				matrix = getComputedStyle(this.scroller, null);
@@ -311,10 +341,6 @@
 			this.pointY		= point.pageY;
 
 			this.startTime	= getTime();
-
-			addEvent(this.wrapper, eventMove, this);
-			addEvent(this.wrapper, eventCancel, this);
-			addEvent(this.wrapper, eventEnd, this);
 		},
 
 		__move: function (e) {
@@ -375,11 +401,39 @@
 				duration = getTime() - this.startTime,
 				newX = 0,
 				newY = 0,
-				ev;
+				scalePropFromStart;
 
-			removeEvent(this.wrapper, eventMove, this);
-			removeEvent(this.wrapper, eventCancel, this);
-			removeEvent(this.wrapper, eventEnd, this);
+			// removeEvent(this.wrapper, eventMove, this);
+			// removeEvent(this.wrapper, eventCancel, this);
+			// removeEvent(this.wrapper, eventEnd, this);
+
+			if ( this.phase == 'zoom' ) {
+				if ( this.scale > this.options.zoomMax ) {
+					this.scale = this.options.zoomMax;
+				} else if ( this.scale < this.options.zoomMin ) {
+					this.scale = this.options.zoomMin;
+				}
+
+				scalePropFromStart = this.scale / this.startScale;
+
+				newX = this.originX - this.originX * scalePropFromStart + this.startX;
+				newY = this.originY - this.originY * scalePropFromStart + this.startY;
+
+				this.scroller.style[transitionDuration] = '200ms';
+				this.scroller.style[transform] = 'translate(' + newX + 'px,' + newY + 'px) scale(' + this.scale + ')' + translateZ;
+
+				this.x = newX;
+				this.y = newY;
+
+				this.refresh();
+
+				this.phase == 'scroll';
+				return;
+			}
+
+			if ( this.phase == 'scroll' && !this.moved ) return;
+
+//			this.phase = hasTouch && e.changedTouches.length == 1 ? 'scroll' : '';
 
 			if ( this.resetPosition(300) ) return;
 
@@ -439,8 +493,8 @@
 				return;
 			}
 
-			deltaX = this.x + wheelDeltaX * this.options.wheelInvertX;
-			deltaY = this.y + wheelDeltaY * this.options.wheelInvertY;
+			deltaX = this.x + wheelDeltaX * this.options.wheelInvertDirection;
+			deltaY = this.y + wheelDeltaY * this.options.wheelInvertDirection;
 
 			if ( deltaX > 0 ) deltaX = 0;
 			else if ( deltaX < this.maxScrollX ) deltaX = this.maxScrollX;
@@ -451,10 +505,34 @@
 			this.scrollTo(deltaX, deltaY, 0);
 		},
 
+		__zoom: function (e) {
+			var c1 = M.abs( e.touches[0].pageX - e.touches[1].pageX ),
+				c2 = M.abs( e.touches[0].pageY - e.touches[1].pageY ),
+				distance = M.sqrt( c1 * c1 + c2 * c2 ),
+				scale = 1 / this.touchesDistanceStart * distance * this.startScale,
+				scalePropFromStart,
+				x, y;
+
+			if ( scale < this.options.zoomMin ) {
+			 	scale = 0.5 * this.options.zoomMin * M.pow(2.0, scale / this.options.zoomMin);
+			} else if ( scale > this.options.zoomMax ) {
+			 	scale = 2.0 * this.options.zoomMax * M.pow(0.5, this.options.zoomMax / scale);
+			}
+
+			scalePropFromStart = scale / this.startScale;
+			x = this.originX - this.originX * scalePropFromStart + this.x;
+			y = this.originY - this.originY * scalePropFromStart + this.y;
+
+			this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')' + translateZ;
+
+			this.scale = scale;
+		},
+
 		resetPosition: function (time) {
 			if ( this.x <= 0 && this.x >= this.maxScrollX && this.y <= 0 && this.y >= this.maxScrollY ) return false;
 
-			var x, y;
+			var x = this.x,
+				y = this.y;
 
 			time = time || 0;
 
