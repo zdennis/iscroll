@@ -115,9 +115,10 @@
 			scrollbars: true,
 			draggableScrollbars: true,
 			//fadeScrollbars: true,		TODO: hide scrollbars when not scrolling
+			//shrinkScrollbars: false,	TODO: shrink scrollbars when dragging over the limits
 
 			mouseWheel: true,
-			wheelInvertDirection: false,
+			invertWheelDirection: false,
 			//wheelSwitchAxes: false,	TODO: vertical wheel scrolls horizontally
 			//wheelAction: 'scroll',	TODO: zoom with mouse wheel
 
@@ -137,7 +138,7 @@
 		if ( !this.options.HWCompositing ) translateZ = '';
 		this.options.useTransition = hasTransition && this.options.useTransition;
 		this.options.useTransform = hasTransform && this.options.useTransform;
-		this.options.wheelInvertDirection = this.options.wheelInvertDirection ? -1 : 1;
+		this.options.invertWheelDirection = this.options.invertWheelDirection ? -1 : 1;
 
 		if ( hasTransform ) this.scroller.style[transformOrigin] = '0 0';
 		this.x = this.options.startX;
@@ -174,7 +175,7 @@
 		addEvent(w, eventCancel, this);
 		addEvent(w, eventEnd, this);
 
-		if ( this.options.mouseWheel && !hasTouch ) {
+		if ( this.options.mouseWheel ) {
 			addEvent(w, 'DOMMouseScroll', this);
 			addEvent(w, 'mousewheel', this);
 		}
@@ -492,8 +493,8 @@
 				return;
 			}
 
-			deltaX = this.x + wheelDeltaX * this.options.wheelInvertDirection;
-			deltaY = this.y + wheelDeltaY * this.options.wheelInvertDirection;
+			deltaX = this.x + wheelDeltaX * this.options.invertWheelDirection;
+			deltaY = this.y + wheelDeltaY * this.options.invertWheelDirection;
 
 			if ( deltaX > 0 ) deltaX = 0;
 			else if ( deltaX < this.maxScrollX ) deltaX = this.maxScrollX;
