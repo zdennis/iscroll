@@ -27,16 +27,14 @@
 			w.msRequestAnimationFrame		||
 			function (callback) { w.setTimeout(callback, 1000 / 60); },
 		transform = (function () {
-			var vendors = 't,webkitT,MozT,msT,OT'.split(','),
+			var vendors = ['t', 'webkitT', 'MozT', 'msT', 'OT'],
 				transform,
 				i = 0,
 				l = vendors.length;
 
 			for ( ; i < l; i++ ) {
 				transform = vendors[i] + 'ransform';
-				if ( transform in dummyStyle ) {
-					return transform;
-				}
+				if ( transform in dummyStyle ) return transform;
 			}
 
 			return false;
@@ -98,7 +96,7 @@
 
 		this.wrapper = typeof el == 'string' ? d.querySelector(el) : el;
 		this.scroller = this.wrapper.children[0];
-		this.scroller.style[transformOrigin] = '0 0';
+		this.enable();
 
 		this.options = {
 			startX: 0,
@@ -108,31 +106,40 @@
 			lockDirection: true,
 			//bounce: true,				TODO: remove scroller bouncing
 			momentum: true,
+			//eventPassthrough: false,	TODO: preserve native vertical scroll on horizontal JS scroll (and vice versa)
 
-			HWCompositing: true,		// mostly a debug thing
+			HWCompositing: true,		// mostly a debug thing (set to false to skip hardware acceleration)
 			useTransition: true,
 			useTransform: true,
 
 			scrollbars: true,
 			draggableScrollbars: true,
+			//fadeScrollbars: true,		TODO: hide scrollbars when not scrolling
 
 			mouseWheel: true,
 			wheelInvertDirection: false,
 			//wheelSwitchAxes: false,	TODO: vertical wheel scrolls horizontally
 			//wheelAction: 'scroll',	TODO: zoom with mouse wheel
 
+			//snap: false,				TODO
+			//flickNavigation: true,	TODO: go to next/prev slide on flick
+
 			zoom: true,
 			zoomMin: 1,
 			zoomMax: 3
+
+			//onFlick: null,			TODO: add flick custom event
 		};
 
 		for ( i in options ) this.options[i] = options[i];
 
+		// Normalize options
 		if ( !this.options.HWCompositing ) translateZ = '';
 		this.options.useTransition = hasTransition && this.options.useTransition;
 		this.options.useTransform = hasTransform && this.options.useTransform;
 		this.options.wheelInvertDirection = this.options.wheelInvertDirection ? -1 : 1;
 
+		if ( hasTransform ) this.scroller.style[transformOrigin] = '0 0';
 		this.x = this.options.startX;
 		this.y = this.options.startY;
 		this.scale = 1;
@@ -175,6 +182,8 @@
 
 	iScroll.prototype = {
 		handleEvent: function (e) {
+			if ( !this.enabled ) return;
+
 			switch ( e.type ) {
 				case eventStart:
 					if ( !hasTouch && e.button !== 0 ) return;
@@ -202,29 +211,6 @@
 					this.__wheel(e);
 					break;
 			}
-		},
-
-		refresh: function () {
-			this.wrapper.offsetHeight;	// Force refresh (linters hate this)
-
-			this.wrapperWidth	= this.wrapper.clientWidth;
-			this.wrapperHeight	= this.wrapper.clientHeight;
-
-			this.scrollerWidth	= M.round(this.scroller.offsetWidth * this.scale);
-			this.scrollerHeight	= M.round(this.scroller.offsetHeight * this.scale);
-
-			this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
-			this.maxScrollY		= this.wrapperHeight - this.scrollerHeight;
-
-			this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
-			this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
-
-			if ( this.hasHorizontalScroll ) this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
-			if ( this.hasVerticalScroll ) this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
-
-			this.resetPosition(0);
-			// this.__transitionTime(0);
-			// this.__pos(this.x, this.y);
 		},
 
 		__animate: function (destX, destY, duration) {
@@ -262,11 +248,12 @@
 
 		__resize: function () {
 			this.refresh();
+			this.resetPosition(0);
 		},
 
 		__pos: function (x, y) {
-			x = this.hasHorizontalScroll ? x : 0;
-			y = this.hasVerticalScroll ? y : 0;
+			//x = this.hasHorizontalScroll ? x : 0;
+			//y = this.hasVerticalScroll ? y : 0;
 
 			if ( this.options.useTransform ) {
 				this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ')' + translateZ;
@@ -287,6 +274,8 @@
 		__transitionEnd: function (e) {
 			if ( e.target != this.scroller ) return;
 
+			if ( this.phase == 'zoom' ) this.phase = 'scroll';
+
 			this.resetPosition(435);
 		},
 
@@ -296,7 +285,7 @@
 				x, y,
 				c1, c2;
 
-			if ( hasTouch ) this.phase = e.touches.length < 2 ? 'scroll' : 'zoom';
+			if ( this.options.zoom && hasTouch ) this.phase = e.touches.length < 2 ? 'scroll' : 'zoom';
 
 			this.moved		= false;
 			this.distX		= 0;
@@ -309,7 +298,7 @@
 			this.__transitionTime(0);
 			this.isRAFing = false;		// stop the rAF animation (only with useTransition:false)
 
-			if ( this.options.zoom && this.phase == 'zoom' ) {
+			if ( this.phase == 'zoom' ) {
 				c1 = M.abs( point.pageX - e.touches[1].pageX );
 				c2 = M.abs( point.pageY - e.touches[1].pageY );
 				this.touchesDistanceStart = M.sqrt(c1 * c1 + c2 * c2);
@@ -401,11 +390,13 @@
 				duration = getTime() - this.startTime,
 				newX = 0,
 				newY = 0,
-				scalePropFromStart;
+				lastScale;
 
 			// removeEvent(this.wrapper, eventMove, this);
 			// removeEvent(this.wrapper, eventCancel, this);
 			// removeEvent(this.wrapper, eventEnd, this);
+
+			if ( this.phase != 'zoom' && !this.moved ) return;
 
 			if ( this.phase == 'zoom' ) {
 				if ( this.scale > this.options.zoomMax ) {
@@ -414,26 +405,34 @@
 					this.scale = this.options.zoomMin;
 				}
 
-				scalePropFromStart = this.scale / this.startScale;
-
-				newX = this.originX - this.originX * scalePropFromStart + this.startX;
-				newY = this.originY - this.originY * scalePropFromStart + this.startY;
-
-				this.scroller.style[transitionDuration] = '200ms';
-				this.scroller.style[transform] = 'translate(' + newX + 'px,' + newY + 'px) scale(' + this.scale + ')' + translateZ;
-
-				this.x = newX;
-				this.y = newY;
-
+				// Update boundaries
 				this.refresh();
 
-				this.phase == 'scroll';
+				lastScale = this.scale / this.startScale;
+
+				newX = this.originX - this.originX * lastScale + this.startX;
+				newY = this.originY - this.originY * lastScale + this.startY;
+
+				if ( newX > 0 ) {
+					newX = 0;
+				} else if ( newX < this.maxScrollX ) {
+					newX = this.maxScrollX;
+				}
+
+				if ( newY > 0 ) {
+					newY = 0;
+				} else if ( newY < this.maxScrollY ) {
+					newY = this.maxScrollY;
+				}
+
+				if ( this.x != newX || this.y != newY ) {
+					this.scrollTo(newX, newY, 300);
+				} else {
+					this.phase = 'scroll';
+				}
+
 				return;
 			}
-
-			if ( this.phase == 'scroll' && !this.moved ) return;
-
-//			this.phase = hasTouch && e.changedTouches.length == 1 ? 'scroll' : '';
 
 			if ( this.resetPosition(300) ) return;
 
@@ -510,22 +509,54 @@
 				c2 = M.abs( e.touches[0].pageY - e.touches[1].pageY ),
 				distance = M.sqrt( c1 * c1 + c2 * c2 ),
 				scale = 1 / this.touchesDistanceStart * distance * this.startScale,
-				scalePropFromStart,
+				lastScale,
 				x, y;
 
 			if ( scale < this.options.zoomMin ) {
-			 	scale = 0.5 * this.options.zoomMin * M.pow(2.0, scale / this.options.zoomMin);
+				scale = 0.5 * this.options.zoomMin * M.pow(2.0, scale / this.options.zoomMin);
 			} else if ( scale > this.options.zoomMax ) {
-			 	scale = 2.0 * this.options.zoomMax * M.pow(0.5, this.options.zoomMax / scale);
+				scale = 2.0 * this.options.zoomMax * M.pow(0.5, this.options.zoomMax / scale);
 			}
 
-			scalePropFromStart = scale / this.startScale;
-			x = this.originX - this.originX * scalePropFromStart + this.x;
-			y = this.originY - this.originY * scalePropFromStart + this.y;
+			lastScale = scale / this.startScale;
+			//x = this.originX - this.originX * lastScale + this.x;
+			//y = this.originY - this.originY * lastScale + this.y;
+			x = this.originX - this.originX * lastScale + this.startX;
+			y = this.originY - this.originY * lastScale + this.startY;
 
-			this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')' + translateZ;
+			//this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')' + translateZ;
 
 			this.scale = scale;
+			this.scrollTo(x, y, 0);
+		},
+
+		disable: function () {
+			this.enabled = true;
+		},
+
+		enable: function () {
+			this.enabled = false;
+		},
+
+		refresh: function () {
+			this.wrapper.offsetHeight;	// Force refresh (linters hate this)
+
+			this.wrapperWidth	= this.wrapper.clientWidth;
+			this.wrapperHeight	= this.wrapper.clientHeight;
+
+			this.scrollerWidth	= M.round(this.scroller.offsetWidth * this.scale);
+			this.scrollerHeight	= M.round(this.scroller.offsetHeight * this.scale);
+
+			this.maxScrollX		= this.wrapperWidth - this.scrollerWidth;
+			this.maxScrollY		= this.wrapperHeight - this.scrollerHeight;
+
+			this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
+			this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
+
+			if ( this.hasHorizontalScroll ) this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
+			if ( this.hasVerticalScroll ) this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
+
+			//this.resetPosition(0);
 		},
 
 		resetPosition: function (time) {
@@ -553,6 +584,14 @@
 			return true;
 		},
 
+		scrollBy: function (x, y, time) {
+			x = this.x + x;
+			y = this.y + y;
+			time = time || 0;
+
+			this.scrollTo(x, y, time);
+		},
+
 		scrollTo: function (x, y, time) {
 			if ( !time || this.options.useTransition ) {
 				this.__transitionTime(time);
@@ -560,14 +599,6 @@
 			} else {
 				this.__animate(x, y, time);
 			}
-		},
-
-		scrollBy: function (x, y, time) {
-			x = this.x + x;
-			y = this.y + y;
-			time = time || 0;
-
-			this.scrollTo(x, y, time);
 		},
 
 		scrollToElement: function () {
