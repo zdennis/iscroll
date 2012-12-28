@@ -291,10 +291,9 @@
 			this.moved		= false;
 			this.distX		= 0;
 			this.distY		= 0;
-			this.absDistX	= 0;
-			this.absDistY	= 0;
 			this.directionX	= 0;
 			this.directionY	= 0;
+			this.directionLocked = 0;
 
 			this.__transitionTime(0);
 			this.isRAFing = false;		// stop the rAF animation (only with useTransition:false)
@@ -335,32 +334,42 @@
 
 		__move: function (e) {
 			var point		= hasTouch ? e.touches[0] : e,
-				deltaX		= point.pageX - this.pointX,
-				deltaY		= point.pageY - this.pointY,
+				deltaX		= this.hasHorizontalScroll ? point.pageX - this.pointX : 0,
+				deltaY		= this.hasVerticalScroll ? point.pageY - this.pointY : 0,
 				newX		= this.x + deltaX,
 				newY		= this.y + deltaY,
-				timestamp	= getTime();
+				timestamp	= getTime(),
+				absDistX,
+				absDistY;
 
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
 
 			this.distX		+= deltaX;
 			this.distY		+= deltaY;
-			this.absDistX	= M.abs(this.distX);
-			this.absDistY	= M.abs(this.distY);
+			absDistX		= M.abs(this.distX);
+			absDistY		= M.abs(this.distY);
 
 			// We need to move at least 10 pixels for the scrolling to initiate
-			if ( this.absDistX < 10 && this.absDistY < 10 ) return;
+			if ( absDistX < 10 && absDistY < 10 ) return;
 
 			// If you are scrolling in one direction lock the other
-			if ( this.options.scrollX && this.options.scrollY && this.options.lockDirection ) {
-				if ( this.absDistX > this.absDistY + 5 ) {
-					newY = this.y;
-					deltaY = 0;
-				} else if ( this.absDistY > this.absDistX + 5 ) {
-					newX = this.x;
-					deltaX = 0;
+			if ( !this.directionLocked && this.options.lockDirection ) {
+				if ( absDistX > absDistY + 5 ) {
+					this.directionLocked = 'h';		// lock horizontally
+				} else if ( absDistY > absDistX + 5 ) {
+					this.directionLocked = 'v';		// lock vertically
+				} else {
+					this.directionLocked = 'n';		// no lock
 				}
+			}
+
+			if ( this.directionLocked == 'h' ) {
+				newY = this.y;
+				deltaY = 0;
+			} else if ( this.directionLocked == 'v' ) {
+				newX = this.x;
+				deltaX = 0;
 			}
 
 			// Slow down if outside of the boundaries
@@ -532,11 +541,11 @@
 		},
 
 		disable: function () {
-			this.enabled = true;
+			this.enabled = false;
 		},
 
 		enable: function () {
-			this.enabled = false;
+			this.enabled = true;
 		},
 
 		refresh: function () {
