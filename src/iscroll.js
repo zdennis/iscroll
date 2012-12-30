@@ -140,7 +140,7 @@
 		this.options.useTransform = hasTransform && this.options.useTransform;
 		this.options.invertWheelDirection = this.options.invertWheelDirection ? -1 : 1;
 
-		if ( hasTransform ) this.scroller.style[transformOrigin] = '0 0';
+		if ( hasTransform ) this.scroller.style[transformOrigin] = '0 0';		// we need the origin to 0 0 for the zoom
 		this.x = this.options.startX;
 		this.y = this.options.startY;
 		this.scale = 1;
@@ -183,15 +183,13 @@
 
 	iScroll.prototype = {
 		handleEvent: function (e) {
-			if ( !this.enabled ) return;
-
 			switch ( e.type ) {
 				case eventStart:
 					if ( !hasTouch && e.button !== 0 ) return;
 					this.__start(e);
 					break;
 				case eventMove:
-					if ( this.options.zoom && this.phase == 'zoom' ) {
+					if ( this.options.zoom && hasTouch && e.touches[1] ) {
 						this.__zoom(e);
 					} else {
 						this.__move(e);
@@ -275,18 +273,19 @@
 		__transitionEnd: function (e) {
 			if ( e.target != this.scroller ) return;
 
-			if ( this.phase == 'zoom' ) this.phase = 'scroll';
+			if ( this.waitReset ) this.waitReset = false;
 
+			this.__transitionTime(0);
 			this.resetPosition(435);
 		},
 
 		__start: function (e) {
+			if ( !this.enabled || this.waitReset ) return;
+
 			var point = hasTouch ? e.touches[0] : e,
 				matrix,
 				x, y,
 				c1, c2;
-
-			if ( this.options.zoom && hasTouch ) this.phase = e.touches.length < 2 ? 'scroll' : 'zoom';
 
 			this.moved		= false;
 			this.distX		= 0;
@@ -298,7 +297,7 @@
 			this.__transitionTime(0);
 			this.isRAFing = false;		// stop the rAF animation (only with useTransition:false)
 
-			if ( this.phase == 'zoom' ) {
+			if ( this.options.zoom && hasTouch && e.touches.length > 1 ) {
 				c1 = M.abs( point.pageX - e.touches[1].pageX );
 				c2 = M.abs( point.pageY - e.touches[1].pageY );
 				this.touchesDistanceStart = M.sqrt(c1 * c1 + c2 * c2);
@@ -333,6 +332,8 @@
 		},
 
 		__move: function (e) {
+			if ( !this.enabled || this.waitReset ) return;
+
 			var point		= hasTouch ? e.touches[0] : e,
 				deltaX		= this.hasHorizontalScroll ? point.pageX - this.pointX : 0,
 				deltaY		= this.hasVerticalScroll ? point.pageY - this.pointY : 0,
@@ -390,7 +391,8 @@
 				this.startY = this.y;
 			}
 
-			this.__pos(newX, newY);
+			this.scrollTo(newX, newY, 0);
+			//this.__pos(newX, newY);
 		},
 
 		__end: function (e) {
@@ -406,9 +408,8 @@
 			// removeEvent(this.wrapper, eventCancel, this);
 			// removeEvent(this.wrapper, eventEnd, this);
 
-			if ( this.phase != 'zoom' && !this.moved ) return;
-
-			if ( this.phase == 'zoom' ) {
+			// Reset if we were zooming
+			if ( this.scaled ) {
 				if ( this.scale > this.options.zoomMax ) {
 					this.scale = this.options.zoomMax;
 				} else if ( this.scale < this.options.zoomMin ) {
@@ -436,17 +437,21 @@
 				}
 
 				if ( this.x != newX || this.y != newY ) {
+					this.waitReset = true;
 					this.scrollTo(newX, newY, 300);
-				} else {
-					this.phase = 'scroll';
 				}
 
+				this.scaled = false;
 				return;
 			}
 
+			if ( !this.moved ) return;
+
+			// reset if we are outside of the boundaries
 			if ( this.resetPosition(300) ) return;
 
-			if ( duration < 300 && this.options.momentum ) {
+			// start momentum animation if needed
+			if ( this.options.momentum && duration < 300 ) {
 				momentumX = this.hasHorizontalScroll ? this.__momentum(this.x, this.startX, duration, this.maxScrollX, this.wrapperWidth) : { destination:0, duration:0 };
 				momentumY = this.hasVerticalScroll ? this.__momentum(this.y, this.startY, duration, this.maxScrollY, this.wrapperHeight) : { destination:0, duration:0 };
 
@@ -538,6 +543,7 @@
 
 			this.scale = scale;
 			this.scrollTo(x, y, 0);
+			this.scaled = true;
 		},
 
 		disable: function () {
@@ -662,7 +668,7 @@
 					this.__end(e);
 					break;
 				case 'mouseover':
-					this.__hover();
+					this.__over();
 					break;
 				case 'mouseout':
 					this.__out();
@@ -670,7 +676,7 @@
 			}
 		},
 
-		__hover: function () {
+		__over: function () {
 			this.wrapper.style[transitionDuration] = '0.15s';
 			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '14px';
 			this.wrapper.style.backgroundColor = 'rgba(0,0,0,0.3)';
