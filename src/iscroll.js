@@ -287,6 +287,7 @@
 				x, y,
 				c1, c2;
 
+			this.initiated	= true;
 			this.moved		= false;
 			this.distX		= 0;
 			this.distY		= 0;
@@ -332,7 +333,7 @@
 		},
 
 		__move: function (e) {
-			if ( !this.enabled || this.waitReset ) return;
+			if ( !this.enabled || !this.initiated || this.waitReset ) return;
 
 			var point		= hasTouch ? e.touches[0] : e,
 				deltaX		= this.hasHorizontalScroll ? point.pageX - this.pointX : 0,
@@ -396,6 +397,8 @@
 		},
 
 		__end: function (e) {
+			if ( !this.enabled || !this.initiated || this.waitReset ) return;
+
 			var point = hasTouch ? e.changedTouches[0] : e,
 				momentumX,
 				momentumY,
@@ -403,6 +406,8 @@
 				newX = 0,
 				newY = 0,
 				lastScale;
+
+			this.initiated = false;
 
 			// removeEvent(this.wrapper, eventMove, this);
 			// removeEvent(this.wrapper, eventCancel, this);
@@ -469,7 +474,6 @@
 
 			destination = current + ( speed * speed ) / ( 2 * deceleration ) * ( distance < 0 ? -1 : 1 );
 			duration = speed / deceleration;
-			time = speed / deceleration;
 
 			if ( destination < lowerMargin ) {
 				destination = lowerMargin - ( maxOvershot / 2 * ( speed / 10 ) );
@@ -520,6 +524,8 @@
 		},
 
 		__zoom: function (e) {
+			if ( !this.enabled || !this.initiated || this.waitReset ) return;
+
 			var c1 = M.abs( e.touches[0].pageX - e.touches[1].pageX ),
 				c2 = M.abs( e.touches[0].pageY - e.touches[1].pageY ),
 				distance = M.sqrt( c1 * c1 + c2 * c2 ),
