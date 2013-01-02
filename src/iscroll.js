@@ -113,7 +113,7 @@
 			useTransform: true,
 
 			scrollbars: true,
-			draggableScrollbars: true,
+			draggableScrollbars: !hasTouch && !hasPointer,
 			//fadeScrollbars: true,		TODO: hide scrollbars when not scrolling
 			//shrinkScrollbars: false,	TODO: shrink scrollbars when dragging over the limits
 
@@ -152,7 +152,7 @@
 			sb = d.createElement('div');
 			sb.style.cssText = 'position:absolute;z-index:1;width:7px;bottom:2px;top:2px;right:1px';
 			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
-			sb.className = 'iSVerticalScrollbar';
+			sb.className = 'iScrollVerticalScrollbar';
 			this.wrapper.appendChild(sb);
 			this.vScrollbar = new Scrollbar(sb, this);
 
@@ -160,7 +160,7 @@
 			sb = d.createElement('div');
 			sb.style.cssText = 'position:absolute;z-index:1;height:7px;left:2px;right:2px;bottom:0';
 			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
-			sb.className = 'iSHorizontalScrollbar';
+			sb.className = 'iScrollHorizontalScrollbar';
 			this.wrapper.appendChild(sb);
 			this.hScrollbar = new Scrollbar(sb, this);
 		}
@@ -296,6 +296,7 @@
 			this.directionLocked = 0;
 
 			this.__transitionTime(0);
+			
 			this.isRAFing = false;		// stop the rAF animation (only with useTransition:false)
 
 			if ( this.options.zoom && hasTouch && e.touches.length > 1 ) {
@@ -575,8 +576,10 @@
 			this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
 			this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
 
-			if ( this.hasHorizontalScroll ) this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
-			if ( this.hasVerticalScroll ) this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
+			if ( this.options.scrollbars ) {
+				this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
+				this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
+			}
 
 			//this.resetPosition(0);
 		},
@@ -636,17 +639,22 @@
 
 		this.direction = this.wrapper.clientWidth > this.wrapper.clientHeight ? 'h' : 'v';
 
+		if ( this.direction == 'h' ) {
+			this.indicatorSizeProperty = 'width';
+			this.wrapperSizeProperty = 'height';
+			this.page = 'pageX';
+		} else {
+			this.indicatorSizeProperty = 'height';
+			this.wrapperSizeProperty = 'width';
+			this.page = 'pageY';
+		}
+
 		indicator = d.createElement('div');
-		indicator.className = 'iSIndicator';
-		indicator.style.cssText = cssVendor + 'box-sizing:border-box;position:absolute;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.9);border-radius:3px';
+		indicator.className = 'iScrollIndicator';
+		indicator.style.cssText = cssVendor + 'box-sizing:border-box;box-sizing:border-box;position:absolute;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.9);border-radius:3px';
 		indicator.style[transform] = translateZ;
 		indicator.style[transitionTimingFunction] = 'cubic-bezier(0.33,0.66,0.66,1)';
-
-		if ( this.direction == 'h' ) {
-			indicator.style.height = '100%';
-		} else {
-			indicator.style.width = '100%';
-		}
+		indicator.style[this.wrapperSizeProperty] = '100%';
 
 		this.wrapper.appendChild(indicator);
 		this.indicator = indicator;
@@ -684,8 +692,8 @@
 
 		__over: function () {
 			this.wrapper.style[transitionDuration] = '0.15s';
-			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '14px';
-			this.wrapper.style.backgroundColor = 'rgba(0,0,0,0.3)';
+			this.wrapper.style[this.wrapperSizeProperty] = '14px';
+			this.wrapper.style.backgroundColor = 'rgba(255,255,255,0.4)';
 			this.indicator.style[transitionDuration] = '0.15s';
 			this.indicator.style.borderRadius = '7px';
 		},
@@ -694,8 +702,8 @@
 			if ( this.initiated ) return;
 
 			this.wrapper.style[transitionDuration] = '0.1s';
-			this.wrapper.style[(this.direction == 'h' ? 'height' : 'width')] = '7px';
-			this.wrapper.style.backgroundColor = 'transparent';
+			this.wrapper.style[this.wrapperSizeProperty] = '7px';
+			this.wrapper.style.backgroundColor = 'rgba(255,255,255,0)';
 			this.indicator.style[transitionDuration] = '0.1s';
 			this.indicator.style.borderRadius = '3px';
 		},
@@ -713,7 +721,7 @@
 
 			this.transitionTime(0);
 
-			this.pointPos	= this.direction == 'h' ? point.pageX : point.pageY;
+			this.lastPoint	= point[this.page];
 			this.startTime	= getTime();
 
 			addEvent(w, eventMove, this);
@@ -725,13 +733,8 @@
 				delta, newPos,
 				timestamp = getTime();
 
-			if ( this.direction == 'h' ) {
-				delta = point.pageX - this.pointPos;
-				this.pointPos = point.pageX;
-			} else {
-				delta = point.pageY - this.pointPos;
-				this.pointPos = point.pageY;
-			}
+			delta = point[this.page] - this.lastPoint;
+			this.lastPoint = point[this.page];
 
 			newPos = this.position + delta;
 
@@ -748,9 +751,7 @@
 
 			this.initiated = false;
 
-			if ( e.target != this.indicator ) {
-				this.__out();
-			}
+			if ( e.target != this.indicator ) this.__out();
 
 			// TODO: check if the following is needed
 			// e.preventDefault();
@@ -760,10 +761,20 @@
 		refresh: function (size, maxScroll, position) {
 			this.transitionTime(0);
 
+			if ( this.direction == 'h' ) {
+				this.wrapper.style.right = this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ? '8px' : '2px';
+				this.wrapper.style.display = this.scroller.hasHorizontalScroll ? 'block' : 'none';
+			} else {
+				this.wrapper.style.bottom = this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ? '8px' : '2px';
+				this.wrapper.style.display = this.scroller.hasVerticalScroll ? 'block' : 'none';
+			}
+
+			this.wrapper.offsetHeight;	// force refresh
+
 			this.wrapperSize = this.direction == 'h' ? this.wrapper.clientWidth : this.wrapper.clientHeight;
 
 			this.indicatorSize = M.max(M.round(this.wrapperSize * this.wrapperSize / size), 8);
-			this.indicator.style[this.direction == 'h' ? 'width' : 'height'] = this.indicatorSize + 'px';
+			this.indicator.style[this.indicatorSizeProperty] = this.indicatorSize + 'px';
 
 			this.maxPos = this.wrapperSize - this.indicatorSize;
 			this.sizeRatio = this.maxPos / maxScroll;
