@@ -105,7 +105,7 @@
 			scrollY: true,
 			lockDirection: true,
 			//bounce: true,				TODO: remove scroller bouncing
-			momentum: true,
+			momentum: false,
 			//eventPassthrough: false,	TODO: preserve native vertical scroll on horizontal JS scroll (and vice versa)
 
 			HWCompositing: true,		// mostly a debug thing (set to false to skip hardware acceleration)
@@ -114,7 +114,7 @@
 
 			scrollbars: true,
 			draggableScrollbars: !hasTouch && !hasPointer,
-			//fadeScrollbars: true,		TODO: hide scrollbars when not scrolling
+			//hideScrollbars: true,		TODO: hide scrollbars when not scrolling
 			//shrinkScrollbars: false,	TODO: shrink scrollbars when dragging over the limits
 
 			mouseWheel: true,
@@ -122,12 +122,16 @@
 			//wheelSwitchAxes: false,	TODO: vertical wheel scrolls horizontally
 			//wheelAction: 'scroll',	TODO: zoom with mouse wheel
 
-			//snap: false,				TODO
+			snap: true,
+			snapThreshold: 10,
+			snapStepX: 0,
+			snapStepY: 0,
 			//flickNavigation: true,	TODO: go to next/prev slide on flick
 
-			zoom: true,
+			zoom: false,
 			zoomMin: 1,
 			zoomMax: 3
+			//startZomm: 1,				TODO: the initial zoom level
 
 			//onFlick: null,			TODO: add flick custom event
 		};
@@ -140,10 +144,13 @@
 		this.options.useTransform = hasTransform && this.options.useTransform;
 		this.options.invertWheelDirection = this.options.invertWheelDirection ? -1 : 1;
 
+		// set some defaults
 		if ( hasTransform ) this.scroller.style[transformOrigin] = '0 0';		// we need the origin to 0 0 for the zoom
 		this.x = this.options.startX;
 		this.y = this.options.startY;
 		this.scale = 1;
+		this.pageX = 0;		// current page, needed by snap, ignored otherwise
+		this.pageY = 0;
 
 		if ( this.options.useTransition ) this.scroller.style[transitionTimingFunction] = 'cubic-bezier(0.33,0.66,0.66,1)';
 
@@ -330,6 +337,10 @@
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
 
+			// needed by snap to compute snap threashold
+			this.absStartX	= this.x;
+			this.absStartY	= this.y;
+
 			this.startTime	= getTime();
 		},
 
@@ -342,8 +353,7 @@
 				newX		= this.x + deltaX,
 				newY		= this.y + deltaY,
 				timestamp	= getTime(),
-				absDistX,
-				absDistY;
+				absDistX, absDistY;
 
 			this.pointX		= point.pageX;
 			this.pointY		= point.pageY;
@@ -404,8 +414,10 @@
 				momentumX,
 				momentumY,
 				duration = getTime() - this.startTime,
-				newX = 0,
-				newY = 0,
+				newX = this.x,
+				newY = this.y,
+				time,
+				snap,
 				lastScale;
 
 			this.initiated = false;
@@ -451,6 +463,7 @@
 				return;
 			}
 
+			// we scrolled less than 10 pixels
 			if ( !this.moved ) return;
 
 			// reset if we are outside of the boundaries
@@ -460,10 +473,21 @@
 			if ( this.options.momentum && duration < 300 ) {
 				momentumX = this.hasHorizontalScroll ? this.__momentum(this.x, this.startX, duration, this.maxScrollX, this.wrapperWidth) : { destination:0, duration:0 };
 				momentumY = this.hasVerticalScroll ? this.__momentum(this.y, this.startY, duration, this.maxScrollY, this.wrapperHeight) : { destination:0, duration:0 };
-
-				if ( newX != this.x || newY != this.y )
-					this.scrollTo(momentumX.destination, momentumY.destination, M.max(momentumX.duration, momentumY.duration));
+				newX = momentumX.destination;
+				newY = momentumY.destination;
+				time = M.max(momentumX.duration, momentumY.duration);
 			}
+
+			if ( this.options.snap ) {
+				snap = this.__snap(newX, newY);
+				newX = snap.x;
+				newY = snap.y;
+				this.pageX = snap.pageX;
+				this.pageY = snap.pageY;
+				time = 200;
+			}
+
+			if ( newX != this.x || newY != this.y ) this.scrollTo(newX, newY, time);
 		},
 
 		__momentum: function (current, start, time, lowerMargin, maxOvershot) {
@@ -553,6 +577,80 @@
 			this.scaled = true;
 		},
 
+		__snap: function (x, y) {
+			var result,
+				current = {
+					x: this.pages[this.pageX][this.pageY].x,
+					y: this.pages[this.pageX][this.pageY].y,
+					pageX: this.pageX,
+					pageY: this.pageY
+				};
+
+			// check if we matched the snap threashold
+			if ( M.abs(x - this.absStartX) < this.options.snapThreshold && M.abs(y - this.absStartY) < this.options.snapThreshold )
+				return current;
+
+			// find new page position
+			result = this.getPage(x, y);
+
+			if ( !result ) return current;
+
+			if ( M.abs(result.pageX - this.pageX) === 0 ) {
+				result.pageX += 1 * this.directionX;
+				if ( result.pageX < 0 ) result.pageX = 0;
+				else if ( result.pageX >= result.pageCountX ) result.pageX = result.pageCountX - 1;
+				result.x = this.pages[result.pageX][result.pageY].x;
+				if ( result.x < this.maxScrollX ) result.x = this.maxScrollX;
+			}
+			if ( M.abs(result.pageY - this.pageY) === 0 ) {
+				result.pageY += 1 * this.directionY;
+				if ( result.pageY < 0 ) result.pageY = 0;
+				else if ( result.pageY >= result.pageCountY ) result.pageY = result.pageCountY - 1;
+				result.y = this.pages[result.pageX][result.pageY].y;
+				if ( result.y < this.maxScrollY ) result.y = this.maxScrollY;
+			}
+
+			return result;
+		},
+
+		getPage: function (x, y) {
+			if ( !this.pages ) return false;
+
+			var i, l,
+				m, n,
+				newX, newY,
+				pageX, pageY;
+
+			x = x || this.x;
+			y = y || this.y;
+
+			for ( i = 0, l = this.pages.length; i < l; i++ ) {
+				for ( m = 0, n = this.pages[i].length; m < n; m++ ) {
+					if ( newX === undefined && x > this.pages[i][m].cx ) {
+						newX = this.pages[i][m].x;
+						pageX = i;
+					}
+					if ( newY === undefined && y > this.pages[i][m].cy ) {
+						newY = this.pages[i][m].y;
+						pageY = m;
+					}
+
+					if ( newY !== undefined && newX !== undefined ) {
+						return {
+							x: newX,
+							y: newY,
+							pageX: pageX,
+							pageY: pageY,
+							pageCountX: this.pages.length,
+							pageCountY: this.pages[0].length
+						};
+					}
+				}
+			}
+
+			return false;
+		},
+
 		disable: function () {
 			this.enabled = false;
 		},
@@ -562,6 +660,8 @@
 		},
 
 		refresh: function () {
+			var x, y, i, l;
+
 			this.wrapper.offsetHeight;	// Force refresh (linters hate this)
 
 			this.wrapperWidth	= this.wrapper.clientWidth;
@@ -579,6 +679,42 @@
 			if ( this.options.scrollbars ) {
 				this.hScrollbar.refresh(this.scrollerWidth, this.maxScrollX, this.x);
 				this.vScrollbar.refresh(this.scrollerHeight, this.maxScrollY, this.y);
+			}
+
+			// this utterly complicated setup is needed to also support snapToElement
+			if ( this.options.snap === true ) {
+				this.options.snapStepX = this.options.snapStepX || this.wrapperWidth;
+				this.options.snapStepY = this.options.snapStepY || this.wrapperHeight;
+			
+				this.pages = [];
+				i = 0;
+				x = 0;
+				cx = M.round(this.options.snapStepX / 2);
+
+				while ( x < this.scrollerWidth ) {
+					this.pages[i] = [];
+					l = 0;
+					y = 0;
+					cy = M.round(this.options.snapStepY / 2);
+
+					while ( y < this.scrollerHeight ) {
+						this.pages[i][l] = {
+							x: -x,
+							y: -y,
+							cx: -cx,
+							cy: -cy
+						};
+
+						y += this.options.snapStepY;
+						cy += this.options.snapStepY;
+						l++;
+					}
+
+					x += this.options.snapStepX;
+					i++;
+				}
+			} else if ( typeof this.options.snap == 'string' ) {
+
 			}
 
 			//this.resetPosition(0);
