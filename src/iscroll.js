@@ -122,7 +122,7 @@
 			//wheelSwitchAxes: false,	TODO: vertical wheel scrolls horizontally
 			//wheelAction: 'scroll',	TODO: zoom with mouse wheel
 
-			snap: true,
+			snap: false,
 			snapThreshold: 10,
 			snapStepX: 0,
 			snapStepY: 0,
@@ -621,8 +621,8 @@
 				newX, newY,
 				pageX, pageY;
 
-			x = x || this.x;
-			y = y || this.y;
+			x = x === undefined ? this.x : x;
+			y = y === undefined ? this.y : y;
 
 			for ( i = 0, l = this.pages.length; i < l; i++ ) {
 				for ( m = 0, n = this.pages[i].length; m < n; m++ ) {
@@ -660,7 +660,7 @@
 		},
 
 		refresh: function () {
-			var x, y, i, l;
+			var x, y, cx, cy, i, l, m, n, el;
 
 			this.wrapper.offsetHeight;	// Force refresh (linters hate this)
 
@@ -714,7 +714,34 @@
 					i++;
 				}
 			} else if ( typeof this.options.snap == 'string' ) {
+				el = this.scroller.querySelectorAll(this.options.snap);
+				this.pages = [];
+				m = 0;
+				n = -1;
+				x = y = 0;
 
+				for ( i = 0, l = el.length; i < l; i++ ) {
+					if ( el[i].offsetLeft === 0 ) {
+						m = 0;
+						n++;
+					}
+
+					if ( !this.pages[m] ) this.pages[m] = [];
+
+					x = el[i].offsetLeft;
+					y = el[i].offsetTop;
+					cx = x + M.round(el[i].offsetWidth / 2);
+					cy = y + M.round(el[i].offsetHeight / 2);
+
+					this.pages[m][n] = {
+						x: -x,
+						y: -y,
+						cx: -cx,
+						cy: -cy
+					};
+
+					m++;
+				}
 			}
 
 			//this.resetPosition(0);
