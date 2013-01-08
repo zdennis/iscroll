@@ -113,7 +113,7 @@
 			useTransform: true,
 
 			scrollbars: true,
-			draggableScrollbars: !hasTouch && !hasPointer,
+			interactiveScrollbars: !hasTouch && !hasPointer,
 			//hideScrollbars: true,		TODO: hide scrollbars when not scrolling
 			//shrinkScrollbars: false,	TODO: shrink scrollbars when dragging over the limits
 
@@ -158,7 +158,7 @@
 			// Vertical scrollbar wrapper
 			sb = d.createElement('div');
 			sb.style.cssText = 'position:absolute;z-index:1;width:7px;bottom:2px;top:2px;right:1px';
-			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
+			if ( !this.options.interactiveScrollbars ) sb.style.pointerEvents = 'none';
 			sb.className = 'iScrollVerticalScrollbar';
 			this.wrapper.appendChild(sb);
 			this.vScrollbar = new Scrollbar(sb, this);
@@ -166,7 +166,7 @@
 			// Horizontal scrollbar wrapper
 			sb = d.createElement('div');
 			sb.style.cssText = 'position:absolute;z-index:1;height:7px;left:2px;right:2px;bottom:0';
-			if ( !this.options.draggableScrollbars ) sb.style.pointerEvents = 'none';
+			if ( !this.options.interactiveScrollbars ) sb.style.pointerEvents = 'none';
 			sb.className = 'iScrollHorizontalScrollbar';
 			this.wrapper.appendChild(sb);
 			this.hScrollbar = new Scrollbar(sb, this);
@@ -791,6 +791,52 @@
 
 		scrollToElement: function () {
 			// TODO
+		}
+	};
+
+	function Indicator (el, scroller, options) {
+		this.indicator = typeof el == 'string' ? d.querySelector(wrapper) : el;
+		this.scroller = scroller;
+
+		var i,
+			defaults = {
+				direction: false,
+				interactive: false,
+				resize: true,
+				sizeRatio: false
+			};
+
+		for ( i in options ) defaults[i] = options[i];
+
+		this.direction = defaults.direction;
+		this.interactive = !!defaults.interactive;
+		this.resize = defaults.resize;
+		this.sizeRatio = defaults.sizeRatio;
+	}
+
+	Indicator.prototype = {
+		refresh: function (size, maxScroll, position) {
+			this.transitionTime(0);
+
+			if ( this.direction == 'h' ) {
+				this.wrapper.style.right = this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ? '8px' : '2px';
+				this.wrapper.style.display = this.scroller.hasHorizontalScroll ? 'block' : 'none';
+			} else {
+				this.wrapper.style.bottom = this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ? '8px' : '2px';
+				this.wrapper.style.display = this.scroller.hasVerticalScroll ? 'block' : 'none';
+			}
+
+			this.wrapper.offsetHeight;	// force refresh
+
+			this.wrapperSize = this.direction == 'h' ? this.wrapper.clientWidth : this.wrapper.clientHeight;
+
+			this.indicatorSize = M.max(M.round(this.wrapperSize * this.wrapperSize / size), 8);
+			this.indicator.style[this.indicatorSizeProperty] = this.indicatorSize + 'px';
+
+			this.maxPos = this.wrapperSize - this.indicatorSize;
+			this.sizeRatio = this.maxPos / maxScroll;
+			
+			this.pos(position);
 		}
 	};
 
