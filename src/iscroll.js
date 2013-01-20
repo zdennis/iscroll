@@ -96,6 +96,7 @@
 
 		this.wrapper = typeof el == 'string' ? d.querySelector(el) : el;
 		this.scroller = this.wrapper.children[0];
+		this.scrollerStyle = this.scroller.style;		// cache style for better performance
 		this.enable();
 
 		this.options = {
@@ -104,8 +105,8 @@
 			scrollX: true,
 			scrollY: true,
 			lockDirection: true,
-			//bounce: true,				TODO: remove scroller bouncing
-			momentum: false,
+			overshoot: true,
+			momentum: true,
 			//eventPassthrough: false,	TODO: preserve native vertical scroll on horizontal JS scroll (and vice versa)
 
 			HWCompositing: true,		// mostly a debug thing (set to false to skip hardware acceleration)
@@ -113,7 +114,7 @@
 			useTransform: true,
 
 			scrollbars: true,
-			interactiveScrollbars: !hasTouch && !hasPointer,
+			interactiveScrollbars: false,
 			//hideScrollbars: true,		TODO: hide scrollbars when not scrolling
 			//shrinkScrollbars: false,	TODO: shrink scrollbars when dragging over the limits
 
@@ -131,7 +132,7 @@
 			zoom: false,
 			zoomMin: 1,
 			zoomMax: 3
-			//startZomm: 1,				TODO: the initial zoom level
+			//startZoom: 1,				TODO: the initial zoom level
 
 			//onFlick: null,			TODO: add flick custom event
 		};
@@ -262,12 +263,12 @@
 			//y = this.hasVerticalScroll ? y : 0;
 
 			if ( this.options.useTransform ) {
-				this.scroller.style[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ')' + translateZ;
+				this.scrollerStyle[transform] = 'translate(' + x + 'px,' + y + 'px) scale(' + this.scale + ')' + translateZ;
 			} else {
 				x = M.round(x);
 				y = M.round(y);
-				this.scroller.style.left = x + 'px';
-				this.scroller.style.top = y + 'px';
+				this.scrollerStyle.left = x + 'px';
+				this.scrollerStyle.top = y + 'px';
 			}
 
 			this.x = x;
@@ -387,10 +388,10 @@
 
 			// Slow down if outside of the boundaries
 			if ( newX > 0 || newX < this.maxScrollX ) {
-				newX = this.x + deltaX / 3;
+				newX = this.options.overshoot ? this.x + deltaX / 3 : newX > 0 ? 0 : this.maxScrollX;
 			}
 			if ( newY > 0 || newY < this.maxScrollY ) {
-				newY = this.y + deltaY / 3;
+				newY = this.options.overshoot ? this.y + deltaY / 3 : newY > 0 ? 0 : this.maxScrollY;
 			}
 
 			this.moved = true;
@@ -501,11 +502,11 @@
 			duration = speed / deceleration;
 
 			if ( destination < lowerMargin ) {
-				destination = lowerMargin - ( maxOvershot / 2 * ( speed / 10 ) );
+				destination = this.options.overshoot ? lowerMargin - ( maxOvershot / 2 * ( speed / 10 ) ) : lowerMargin;
 				distance = M.abs(destination - current);
 				duration = distance / speed;
 			} else if ( destination > 0 ) {
-				destination = maxOvershot / 2 * ( speed / 10 );
+				destination = this.options.overshoot ? maxOvershot / 2 * ( speed / 10 ) : 0;
 				distance = M.abs(current) + destination;
 				duration = distance / speed;
 			}
@@ -515,7 +516,7 @@
 
 		__transitionTime: function (time) {
 			time = time || 0;
-			this.scroller.style[transitionDuration] = time + 'ms';
+			this.scrollerStyle[transitionDuration] = time + 'ms';
 
 			if ( this.hasHorizontalScroll ) this.hScrollbar.transitionTime(time);
 			if ( this.hasVerticalScroll ) this.vScrollbar.transitionTime(time);
@@ -798,24 +799,17 @@
 		this.indicator = typeof el == 'string' ? d.querySelector(wrapper) : el;
 		this.scroller = scroller;
 
-		var i,
-			defaults = {
-				direction: false,
-				interactive: false,
-				resize: true,
-				sizeRatio: false
-			};
+		// defaults
+		this.direction = false;
+		this.interactive = false;
+		this.resize = true;
+		this.sizeRatio = false;
 
-		for ( i in options ) defaults[i] = options[i];
-
-		this.direction = defaults.direction;
-		this.interactive = !!defaults.interactive;
-		this.resize = defaults.resize;
-		this.sizeRatio = defaults.sizeRatio;
+		//for ( var i in options ) this[i] = options[i];
 	}
 
 	Indicator.prototype = {
-		refresh: function (size, maxScroll, position) {
+		refresh: function () {
 			this.transitionTime(0);
 
 			if ( this.direction == 'h' ) {
