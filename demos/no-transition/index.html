@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
 
-<title>iScroll demo: simple</title>
+<title>iScroll demo: No transition</title>
 
 <script type="text/javascript" src="../../build/iscroll.js"></script>
 
@@ -13,7 +13,7 @@
 var myScroll;
 
 function loaded () {
-	myScroll = new iScroll('#wrapper');
+	myScroll = new iScroll('#wrapper', { useTransition: false });
 }
 
 document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
