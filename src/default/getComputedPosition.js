@@ -1,6 +1,6 @@
 
-iScroll.prototype.getComputedPosition = function (el) {
-	var matrix = getComputedStyle(el, null),
+iScroll.prototype.getComputedPosition = function () {
+	var matrix = window.getComputedStyle(this.scroller, null),
 		x, y;
 
 	if ( this.options.useTransform ) {

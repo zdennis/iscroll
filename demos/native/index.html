@@ -4,21 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
 
-<title>iScroll demo: simple</title>
-
-<script type="text/javascript" src="../../build/iscroll.js"></script>
-
-<script type="text/javascript">
-
-var myScroll;
-
-function loaded () {
-	myScroll = new iScroll('#wrapper');
-}
-
-document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
-
-</script>
+<title>iScroll demo: native scrolling</title>
 
 <style type="text/css">
 .bezier {
@@ -89,6 +75,19 @@ body {
 	width: 100%;
 	background: #ccc;
 	overflow: hidden;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	-webkit-text-size-adjust: none;
+	-moz-text-size-adjust: none;
+	-ms-text-size-adjust: none;
+	-o-text-size-adjust: none;
+	text-size-adjust: none;
+
+	overflow: scroll;
+	-webkit-overflow-scrolling: touch;
 }
 
 #scroller {
@@ -101,16 +100,6 @@ body {
 	-ms-transform: translateZ(0);
 	-o-transform: translateZ(0);
 	transform: translateZ(0);
-	-webkit-touch-callout: none;
-	-webkit-user-select: none;
-	-moz-user-select: none;
-	-ms-user-select: none;
-	user-select: none;
-	-webkit-text-size-adjust: none;
-	-moz-text-size-adjust: none;
-	-ms-text-size-adjust: none;
-	-o-text-size-adjust: none;
-	text-size-adjust: none;
 }
 
 #scroller ul {
@@ -133,13 +122,13 @@ body {
 
 </style>
 </head>
-<body onload="loaded()">
+<body>
 <div id="header">iScroll</div>
 
 <div id="wrapper">
 	<div id="scroller">
 		<ul>
-			<li>Pretty row 1</li>
+			<li>This is not iScroll</li>
 			<li>Pretty row 2</li>
 			<li>Pretty row 3</li>
 			<li>Pretty row 4</li>
@@ -192,6 +181,30 @@ body {
 		</ul>
 	</div>
 </div>
+
+<script type="text/javascript">
+
+var wrapper = document.getElementById('wrapper');
+wrapper.addEventListener('scroll', scroll, false);
+wrapper.addEventListener('touchend', touchend, false);
+
+var time;
+var init = false;
+
+function touchend () {
+	init = true;
+	time = Date.now();
+}
+
+function scroll () {
+	if ( !init ) return;
+
+	var now = Date.now();
+	console.log(now - time);
+	init = false;
+}
+
+</script>
 
 <div id="footer"></div>
 

@@ -17,6 +17,17 @@ module.exports = function (grunt) {
 						'src/close.js'
 					]
 			},
+			lite: {
+				dest: 'build/iscroll-lite.js',
+				src: [
+						'src/open.js',
+						'src/utils.js',
+						'src/core.js',
+						'src/default/_translate.js',
+						'src/default/getComputedPosition.js',
+						'src/close.js'
+					]
+			},
 			iphone: {
 				dest: 'build/iscroll-iphone.js',
 				src: [
@@ -35,13 +46,16 @@ module.exports = function (grunt) {
 
 		uglify: {
 			dist: {
-				src: 'build/iscroll.js',
-				dest: 'dist/iscroll.min.js'
-			},
-			iphone: {
-				src: 'build/iscroll-iphone.js',
-				dest: 'dist/iscroll-iphone.min.js'
-			}		
+				files: [
+					{
+						expand: true,
+						cwd: 'build',
+						src: '*.js',
+						dest: 'dist/',
+						ext: '.min.js'
+					}
+				]
+			}
 		},
 
 		watch: {

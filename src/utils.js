@@ -1,3 +1,10 @@
+var rAF = window.requestAnimationFrame	||
+	window.webkitRequestAnimationFrame	||
+	window.mozRequestAnimationFrame		||
+	window.oRequestAnimationFrame		||
+	window.msRequestAnimationFrame		||
+	function (callback) { window.setTimeout(callback, 1000 / 60); };
+
 var utils = (function () {
 	var me = {};
 
@@ -24,13 +31,6 @@ var utils = (function () {
 
 	me.getTime = Date.now || function getTime () { return new Date().getTime(); };
 
-	me.rAF = window.requestAnimationFrame	||
-		window.webkitRequestAnimationFrame	||
-		window.mozRequestAnimationFrame		||
-		window.oRequestAnimationFrame		||
-		window.msRequestAnimationFrame		||
-		function (callback) { window.setTimeout(callback, 1000 / 60); };
-
 	me.extend = function (target, obj) {
 		for ( var i in obj ) {
 			target[i] = obj[i];
@@ -45,22 +45,22 @@ var utils = (function () {
 		el.removeEventListener(type, fn, !!capture);
 	};
 
-	me.momentum = function (current, start, time, lowerMargin, maxOvershot) {
+	me.momentum = function (current, start, time, lowerMargin, wrapperSize) {
 		var distance = current - start,
 			speed = Math.abs(distance) / time,
 			destination,
 			duration,
-			deceleration = 0.0009;
+			deceleration = 0.0006;
 
 		destination = current + ( speed * speed ) / ( 2 * deceleration ) * ( distance < 0 ? -1 : 1 );
 		duration = speed / deceleration;
 
 		if ( destination < lowerMargin ) {
-			destination = maxOvershot ? lowerMargin - ( maxOvershot / 2 * ( speed / 10 ) ) : lowerMargin;
+			destination = wrapperSize ? lowerMargin - ( wrapperSize / 3 * ( speed / 10 ) ) : lowerMargin;
 			distance = Math.abs(destination - current);
 			duration = distance / speed;
 		} else if ( destination > 0 ) {
-			destination = maxOvershot ? maxOvershot / 2 * ( speed / 10 ) : 0;
+			destination = wrapperSize ? wrapperSize / 3 * ( speed / 10 ) : 0;
 			distance = Math.abs(current) + destination;
 			duration = distance / speed;
 		}
@@ -86,6 +86,54 @@ var utils = (function () {
 		transitionTimingFunction: _prefixStyle('transitionTimingFunction'),
 		transitionDuration: _prefixStyle('transitionDuration'),
 		translateZ: me.hasPerspective ? ' translateZ(0)' : ''
+	});
+
+	me.extend(me.ease = {}, {
+		quadratic: {
+			style: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+			fn: function (k) {
+				return k * ( 2 - k );
+			}
+		},
+		circular: {
+			style: 'cubic-bezier(0.1, 0.57, 0.1, 1)',	// Not properly "circular" but this looks better, it should be (0.075, 0.82, 0.165, 1)
+			fn: function (k) {
+				return Math.sqrt( 1 - ( --k * k ) );
+			}
+		},
+		back: {
+			style: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+			fn: function (k) {
+				var b = 4;
+				return ( k = k - 1 ) * k * ( ( b + 1 ) * k + b ) + 1;
+			}
+		},
+		bounce: {
+			style: '',
+			fn: function (k) {
+				if ( ( k /= 1 ) < ( 1 / 2.75 ) ) {
+					return 7.5625 * k * k;
+				} else if ( k < ( 2 / 2.75 ) ) {
+					return 7.5625 * ( k -= ( 1.5 / 2.75 ) ) * k + 0.75;
+				} else if ( k < ( 2.5 / 2.75 ) ) {
+					return 7.5625 * ( k -= ( 2.25 / 2.75 ) ) * k + 0.9375;
+				} else {
+					return 7.5625 * ( k -= ( 2.625 / 2.75 ) ) * k + 0.984375;
+				}
+			}
+		},
+		elastic: {
+			style: '',
+			fn: function (k) {
+				f = 0.225;
+				e = 1;
+
+				if ( k === 0 ) { return 0; }
+				if ( k == 1 ) { return 1; }
+
+				return ( e * Math.pow( 2, - 10 * k ) * Math.sin( ( k - f / 4 ) * ( 2 * Math.PI ) / f ) + 1 );
+			}
+		}
 	});
 
 	return me;

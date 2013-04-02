@@ -10,9 +10,13 @@ function iScroll (el, options) {
 		scrollX: true,
 		scrollY: true,
 		lockDirection: true,
-		overshoot: true,
 		momentum: true,
-		//eventPassthrough: false,	TODO: preserve native vertical scroll on horizontal JS scroll (and vice versa)
+
+		bounce: true,
+		bounceTime: 600,
+		bounceEasing: 'circular',
+
+		//eventPassthrough: false,	TODO: preserve native vertical scroll on horizontal iScroll (and vice versa)
 
 		HWCompositing: true,		// set to false to skip the hardware compositing
 		useTransition: true,
@@ -31,16 +35,13 @@ function iScroll (el, options) {
 	this.options.useTransition = utils.hasTransition && this.options.useTransition;
 	this.options.useTransform = utils.hasTransform && this.options.useTransform;
 
-	// default easing
-	if ( this.options.useTransition ) {
-		this.scroller.style[utils.style.transitionTimingFunction] = 'cubic-bezier(0.33,0.66,0.66,1)';
-	}
+	this.options.bounceEasing = typeof this.options.bounceEasing == 'string' ? utils.ease[this.options.bounceEasing] || utils.ease.circular : utils.ease.circular;
 
 	this._initEvents();
 
 	this.refresh();
-	this.scrollTo(this.options.startX, this.options.startY, 0);
-	this.enabled = true;
+	this.scrollTo(this.options.startX, this.options.startY);
+	this.enable();
 }
 
 iScroll.prototype.handleEvent = function (e) {
@@ -142,7 +143,7 @@ iScroll.prototype._transitionEnd = function (e) {
 	}
 
 	this._transitionTime(0);
-	this.resetPosition(435);
+	this.resetPosition(this.options.bounceTime);
 };
 
 iScroll.prototype._transitionTime = function (time) {
@@ -151,15 +152,16 @@ iScroll.prototype._transitionTime = function (time) {
 };
 
 iScroll.prototype._start = function (e) {
-	//e.returnValue = false;
 	if ( !this.enabled ) {
 		return;
 	}
 
 	// stick with one event type (touches only or mouse only)
-	if ( this.initiated && e.type != this.initiated ) {
+	if ( this.initiated && e.type !== this.initiated ) {
 		return;
 	}
+
+	e.preventDefault();
 
 	var point = e.touches ? e.touches[0] : e,
 		pos;
@@ -173,21 +175,19 @@ iScroll.prototype._start = function (e) {
 	this._transitionTime();
 	
 	this.isAnimating = false;
+	this.startTime = utils.getTime();
 
-	if ( this.options.momentum ) {
-		pos = this.getComputedPosition(this.scroller);
+	if ( this.options.useTransition && this.isInTransition ) {
+		pos = this.getComputedPosition();
 
-		if ( pos.x != this.x || pos.y != this.y ) {
-			this._translate(pos.x, pos.y);
-		}
+		this._translate(Math.round(pos.x), Math.round(pos.y));
+		this.isInTransition = false;
 	}
 
 	this.startX = this.x;
 	this.startY = this.y;
 	this.pointX = point.pageX;
 	this.pointY = point.pageY;
-
-	this.startTime = utils.getTime();
 };
 
 iScroll.prototype._move = function (e) {
@@ -211,7 +211,7 @@ iScroll.prototype._move = function (e) {
 	absDistY		= Math.abs(this.distY);
 
 	// We need to move at least 10 pixels for the scrolling to initiate
-	if ( absDistX < 10 && absDistY < 10 ) {
+	if ( timestamp - this.endTime > 300 && (absDistX < 10 && absDistY < 10) ) {
 		return;
 	}
 
@@ -237,10 +237,10 @@ iScroll.prototype._move = function (e) {
 
 	// Slow down if outside of the boundaries
 	if ( newX > 0 || newX < this.maxScrollX ) {
-		newX = this.options.overshoot ? this.x + deltaX / 3 : newX > 0 ? 0 : this.maxScrollX;
+		newX = this.options.bounce ? this.x + deltaX / 3 : newX > 0 ? 0 : this.maxScrollX;
 	}
 	if ( newY > 0 || newY < this.maxScrollY ) {
-		newY = this.options.overshoot ? this.y + deltaY / 3 : newY > 0 ? 0 : this.maxScrollY;
+		newY = this.options.bounce ? this.y + deltaY / 3 : newY > 0 ? 0 : this.maxScrollY;
 	}
 
 	this.moved = true;
@@ -265,12 +265,15 @@ iScroll.prototype._end = function (e) {
 		duration = utils.getTime() - this.startTime,
 		newX = Math.round(this.x),
 		newY = Math.round(this.y),
-		time;
+		time,
+		easing = '';
 
+	this.isInTransition = 0;
 	this.initiated = false;
+	this.endTime = utils.getTime();
 
 	// reset if we are outside of the boundaries
-	if ( this.resetPosition(300) ) {
+	if ( this.resetPosition(this.options.bounceTime) ) {
 		return;
 	}
 
@@ -281,19 +284,23 @@ iScroll.prototype._end = function (e) {
 
 	// start momentum animation if needed
 	if ( this.options.momentum && duration < 300 ) {
-		momentumX = this.hasHorizontalScroll ? utils.momentum(this.x, this.startX, duration, this.maxScrollX, this.options.overshoot ? this.wrapperWidth : 0) : { destination: newX, duration: 0 };
-		momentumY = this.hasVerticalScroll ? utils.momentum(this.y, this.startY, duration, this.maxScrollY, this.options.overshoot ? this.wrapperHeight : 0) : { destination: newY, duration: 0 };
+		momentumX = this.hasHorizontalScroll ? utils.momentum(this.x, this.startX, duration, this.maxScrollX, this.options.bounce ? this.wrapperWidth : 0) : { destination: newX, duration: 0 };
+		momentumY = this.hasVerticalScroll ? utils.momentum(this.y, this.startY, duration, this.maxScrollY, this.options.bounce ? this.wrapperHeight : 0) : { destination: newY, duration: 0 };
 		newX = momentumX.destination;
 		newY = momentumY.destination;
 		time = Math.max(momentumX.duration, momentumY.duration);
+		this.isInTransition = 1;
 	}
 
 	if ( newX != this.x || newY != this.y ) {
-		this.scrollTo(newX, newY, time);
+		if ( newX > 0 || newX < this.maxScrollX || newY > 0 || newY < this.maxScrollY ) {
+			easing = utils.ease.quadratic;
+		}
+		this.scrollTo(newX, newY, time, easing);
 	}
 };
 
-iScroll.prototype._animate = function (destX, destY, duration) {
+iScroll.prototype._animate = function (destX, destY, duration, easingFn) {
 	var that = this,
 		startX = this.x,
 		startY = this.y,
@@ -308,12 +315,12 @@ iScroll.prototype._animate = function (destX, destY, duration) {
 		if ( now >= destTime ) {
 			that.isAnimating = false;
 			that._translate(destX, destY);
-			that.resetPosition(435);
+			that.resetPosition(that.options.bounceTime);
 			return;
 		}
 
-		now = ( now - startTime ) / duration - 1;
-		easing = Math.sqrt( 1 - now * now );
+		now = ( now - startTime ) / duration;
+		easing = easingFn(now);
 		newX = ( destX - startX ) * easing + startX;
 		newY = ( destY - startY ) * easing + startY;
 		that._translate(newX, newY);
@@ -354,7 +361,7 @@ iScroll.prototype.resetPosition = function (time) {
 		y = this.maxScrollY;
 	}
 
-	this.scrollTo(x, y, time);
+	this.scrollTo(x, y, time, this.options.bounceEasing);
 
 	return true;
 };
@@ -368,7 +375,7 @@ iScroll.prototype.enable = function () {
 };
 
 iScroll.prototype.refresh = function () {
-	var rf = this.wrapper.offsetHeight;		// Force refresh (linters hate this)
+	var rf = this.wrapper.offsetHeight;		// Force refresh
 
 	this.wrapperWidth	= this.wrapper.clientWidth;
 	this.wrapperHeight	= this.wrapper.clientHeight;
@@ -381,6 +388,8 @@ iScroll.prototype.refresh = function () {
 
 	this.hasHorizontalScroll	= this.options.scrollX && this.maxScrollX < 0;
 	this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
+
+	this.endTime		= 0;
 };
 
 iScroll.prototype.scrollBy = function (x, y, time) {
@@ -391,11 +400,14 @@ iScroll.prototype.scrollBy = function (x, y, time) {
 	this.scrollTo(x, y, time);
 };
 
-iScroll.prototype.scrollTo = function (x, y, time) {
-	if ( !time || this.options.useTransition ) {
+iScroll.prototype.scrollTo = function (x, y, time, easing) {
+	easing = easing || utils.ease.circular;
+
+	if ( !time || (this.options.useTransition && easing.style) ) {
+		this.scrollerStyle[utils.style.transitionTimingFunction] = easing.style;
 		this._transitionTime(time);
 		this._translate(x, y);
 	} else {
-		this._animate(x, y, time);
+		this._animate(x, y, time, easing.fn);
 	}
 };
