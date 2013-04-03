@@ -56,11 +56,11 @@ var utils = (function () {
 		duration = speed / deceleration;
 
 		if ( destination < lowerMargin ) {
-			destination = wrapperSize ? lowerMargin - ( wrapperSize / 3 * ( speed / 10 ) ) : lowerMargin;
+			destination = wrapperSize ? lowerMargin - ( wrapperSize / 2.5 * ( speed / 8 ) ) : lowerMargin;
 			distance = Math.abs(destination - current);
 			duration = distance / speed;
 		} else if ( destination > 0 ) {
-			destination = wrapperSize ? wrapperSize / 3 * ( speed / 10 ) : 0;
+			destination = wrapperSize ? wrapperSize / 2.5 * ( speed / 8 ) : 0;
 			distance = Math.abs(current) + destination;
 			duration = distance / speed;
 		}
