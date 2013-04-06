@@ -59,11 +59,11 @@ var utils = (function () {
 		duration = speed / deceleration;
 
 		if ( destination < lowerMargin ) {
-			destination = wrapperSize ? lowerMargin - ( wrapperSize / 3 * ( speed / 10 ) ) : lowerMargin;
+			destination = wrapperSize ? lowerMargin - ( wrapperSize / 2.5 * ( speed / 8 ) ) : lowerMargin;
 			distance = Math.abs(destination - current);
 			duration = distance / speed;
 		} else if ( destination > 0 ) {
-			destination = wrapperSize ? wrapperSize / 3 * ( speed / 10 ) : 0;
+			destination = wrapperSize ? wrapperSize / 2.5 * ( speed / 8 ) : 0;
 			distance = Math.abs(current) + destination;
 			duration = distance / speed;
 		}
@@ -160,9 +160,10 @@ function iScroll (el, options) {
 		bounceTime: 600,
 		bounceEasing: 'circular',
 
-		//eventPassthrough: false,	TODO: preserve native vertical scroll on horizontal iScroll (and vice versa)
+		preventDefault: true,
+		eventPassthrough: false,
 
-		HWCompositing: true,		// set to false to skip the hardware compositing
+		HWCompositing: true,
 		useTransition: true,
 		useTransform: true
 	};
@@ -179,7 +180,18 @@ function iScroll (el, options) {
 	this.options.useTransition = utils.hasTransition && this.options.useTransition;
 	this.options.useTransform = utils.hasTransform && this.options.useTransform;
 
-	this.options.bounceEasing = typeof this.options.bounceEasing == 'string' ? utils.ease[this.options.bounceEasing] || utils.ease.circular : utils.ease.circular;
+	this.options.eventPassthrough = this.options.eventPassthrough === true ? 'vertical' : this.options.eventPassthrough;
+	this.options.preventDefault = !this.options.eventPassthrough && this.options.preventDefault;
+
+	// If you want eventPassthrough I have to lock one of the axes
+	this.options.scrollY = this.options.eventPassthrough == 'vertical' ? false : this.options.scrollY;
+	this.options.scrollX = this.options.eventPassthrough == 'horizontal' ? false : this.options.scrollX;
+
+	// With eventPassthrough we also need lockDirection mechanism
+	this.options.lockDirection = this.options.lockDirection || this.options.eventPassthrough;
+	this.directionLockThreshold = this.options.eventPassthrough ? 0 : 5;
+
+	this.options.bounceEasing = typeof this.options.bounceEasing == 'string' ? utils.ease[this.options.bounceEasing] || utils.ease.circular : this.options.bounceEasing;
 
 	this._initEvents();
 
@@ -305,7 +317,9 @@ iScroll.prototype._start = function (e) {
 		return;
 	}
 
-	e.preventDefault();
+	if ( this.options.preventDefault ) {
+		e.preventDefault();
+	}
 
 	var point = e.touches ? e.touches[0] : e,
 		pos;
@@ -340,8 +354,8 @@ iScroll.prototype._move = function (e) {
 	}
 
 	var point		= e.touches ? e.touches[0] : e,
-		deltaX		= this.hasHorizontalScroll ? point.pageX - this.pointX : 0,
-		deltaY		= this.hasVerticalScroll ? point.pageY - this.pointY : 0,
+		deltaX		= point.pageX - this.pointX,
+		deltaY		= point.pageY - this.pointY,
 		timestamp	= utils.getTime(),
 		newX, newY,
 		absDistX, absDistY;
@@ -361,9 +375,9 @@ iScroll.prototype._move = function (e) {
 
 	// If you are scrolling in one direction lock the other
 	if ( !this.directionLocked && this.options.lockDirection ) {
-		if ( absDistX > absDistY + 5 ) {
+		if ( absDistX > absDistY + this.directionLockThreshold ) {
 			this.directionLocked = 'h';		// lock horizontally
-		} else if ( absDistY > absDistX + 5 ) {
+		} else if ( absDistY >= absDistX + this.directionLockThreshold ) {
 			this.directionLocked = 'v';		// lock vertically
 		} else {
 			this.directionLocked = 'n';		// no lock
@@ -371,13 +385,27 @@ iScroll.prototype._move = function (e) {
 	}
 
 	if ( this.directionLocked == 'h' ) {
+		if ( this.options.eventPassthrough == 'vertical' ) {
+			e.preventDefault();
+		} else if ( this.options.eventPassthrough == 'horizontal' ) {
+			this.initiated = false;
+			return;
+		}
+
 		deltaY = 0;
 	} else if ( this.directionLocked == 'v' ) {
+		if ( this.options.eventPassthrough == 'horizontal' ) {
+			e.preventDefault();
+		} else if ( this.options.eventPassthrough == 'vertical' ) {
+			this.initiated = false;
+			return;
+		}
+
 		deltaX = 0;
 	}
 
-	newX = this.x + deltaX;
-	newY = this.y + deltaY;
+	newX = this.x + (this.hasHorizontalScroll ? deltaX : 0);
+	newY = this.y + (this.hasVerticalScroll ? deltaY : 0);
 
 	// Slow down if outside of the boundaries
 	if ( newX > 0 || newX < this.maxScrollX ) {
