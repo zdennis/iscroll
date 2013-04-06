@@ -23,6 +23,7 @@ module.exports = function (grunt) {
 						'src/open.js',
 						'src/utils.js',
 						'src/core.js',
+						'src/default/_initEvents.js',
 						'src/default/_translate.js',
 						'src/default/getComputedPosition.js',
 						'src/close.js'

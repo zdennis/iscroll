@@ -21,7 +21,10 @@ function iScroll (el, options) {
 
 		HWCompositing: true,
 		useTransition: true,
-		useTransform: true
+		useTransform: true,
+
+		mouseWheel: true,		
+		invertWheelDirection: false
 	};
 
 	for ( var i in options ) {
@@ -35,6 +38,7 @@ function iScroll (el, options) {
 
 	this.options.useTransition = utils.hasTransition && this.options.useTransition;
 	this.options.useTransform = utils.hasTransform && this.options.useTransform;
+	this.options.invertWheelDirection = this.options.invertWheelDirection ? -1 : 1;
 
 	this.options.eventPassthrough = this.options.eventPassthrough === true ? 'vertical' : this.options.eventPassthrough;
 	this.options.preventDefault = !this.options.eventPassthrough && this.options.preventDefault;
@@ -88,65 +92,15 @@ iScroll.prototype.handleEvent = function (e) {
 		case 'MSTransitionEnd':
 			this._transitionEnd(e);
 			break;
+		case 'DOMMouseScroll':
+		case 'mousewheel':
+			this._wheel(e);
+			break;
 	}
-};
-
-iScroll.prototype._initEvents = function () {
-	utils.addEvent(window, 'orientationchange', this);
-	utils.addEvent(window, 'resize', this);
-
-	if ( utils.hasTouch ) {
-		utils.addEvent(this.wrapper, 'touchstart', this);
-		utils.addEvent(window, 'touchmove', this);
-		utils.addEvent(window, 'touchcancel', this);
-		utils.addEvent(window, 'touchend', this);
-	}
-
-	if ( utils.hasPointer ) {
-		utils.addEvent(this.wrapper, 'MSPointerDown', this);
-		utils.addEvent(window, 'MSPointerMove', this);
-		utils.addEvent(window, 'MSPointerCancel', this);
-		utils.addEvent(window, 'MSPointerUp', this);
-	}
-
-	utils.addEvent(this.wrapper, 'mousedown', this);
-	utils.addEvent(window, 'mousemove', this);
-	utils.addEvent(window, 'mousecancel', this);
-	utils.addEvent(window, 'mouseup', this);
-
-	utils.addEvent(this.scroller, 'transitionend', this);
-	utils.addEvent(this.scroller, 'webkitTransitionEnd', this);
-	utils.addEvent(this.scroller, 'oTransitionEnd', this);
-	utils.addEvent(this.scroller, 'MSTransitionEnd', this);
 };
 
 iScroll.prototype.destroy = function () {
-	utils.removeEvent(window, 'orientationchange', this);
-	utils.removeEvent(window, 'resize', this);
-
-	if ( utils.hasTouch ) {
-		utils.removeEvent(this.wrapper, 'touchstart', this);
-		utils.removeEvent(window, 'touchmove', this);
-		utils.removeEvent(window, 'touchcancel', this);
-		utils.removeEvent(window, 'touchend', this);
-	}
-
-	if ( utils.hasPointer ) {
-		utils.removeEvent(this.wrapper, 'MSPointerDown', this);
-		utils.removeEvent(window, 'MSPointerMove', this);
-		utils.removeEvent(window, 'MSPointerCancel', this);
-		utils.removeEvent(window, 'MSPointerUp', this);
-	}
-
-	utils.removeEvent(this.wrapper, 'mousedown', this);
-	utils.removeEvent(window, 'mousemove', this);
-	utils.removeEvent(window, 'mousecancel', this);
-	utils.removeEvent(window, 'mouseup', this);
-
-	utils.removeEvent(this.scroller, 'transitionend', this);
-	utils.removeEvent(this.scroller, 'webkitTransitionEnd', this);
-	utils.removeEvent(this.scroller, 'oTransitionEnd', this);
-	utils.removeEvent(this.scroller, 'MSTransitionEnd', this);
+	this._initEvents(true);
 };
 
 iScroll.prototype._transitionEnd = function (e) {
