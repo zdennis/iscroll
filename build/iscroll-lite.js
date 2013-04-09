@@ -168,7 +168,9 @@ function iScroll (el, options) {
 		useTransform: true,
 
 		mouseWheel: true,		
-		invertWheelDirection: false
+		invertWheelDirection: false,
+
+		keyBindings: false
 	};
 
 	for ( var i in options ) {
@@ -239,6 +241,9 @@ iScroll.prototype.handleEvent = function (e) {
 		case 'DOMMouseScroll':
 		case 'mousewheel':
 			this._wheel(e);
+			break;
+		case 'keydown':
+			this._key(e);
 			break;
 	}
 };
@@ -501,7 +506,7 @@ iScroll.prototype.enable = function () {
 };
 
 iScroll.prototype.refresh = function () {
-	var rf = this.wrapper.offsetHeight;		// Force refresh
+	var h = this.wrapper.offsetHeight;		// Force refresh
 
 	this.wrapperWidth	= this.wrapper.clientWidth;
 	this.wrapperHeight	= this.wrapper.clientHeight;

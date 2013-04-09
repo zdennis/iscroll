@@ -33,8 +33,4 @@ iScroll.prototype._initEvents = function (remove) {
 		eventType(this.scroller, 'DOMMouseScroll', this);
 		eventType(this.scroller, 'mousewheel', this);
 	}
-
-	if ( this.options.keyBindings ) {
-		eventType(window, 'keydown', this);
-	}
 };
