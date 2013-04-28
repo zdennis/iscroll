@@ -3,6 +3,8 @@ iScroll.prototype._wheel = function (e) {
 	var wheelDeltaX, wheelDeltaY,
 		newX, newY;
 
+	e.preventDefault();
+
 	if ( 'wheelDeltaX' in e ) {
 		wheelDeltaX = e.wheelDeltaX / 10;
 		wheelDeltaY = e.wheelDeltaY / 10;
@@ -10,6 +12,7 @@ iScroll.prototype._wheel = function (e) {
 		wheelDeltaX = wheelDeltaY = e.wheelDelta / 10;
 	} else if ( 'detail' in e ) {
 		wheelDeltaX = wheelDeltaY = -e.detail * 3;
+		console.log(e)
 	} else {
 		return;
 	}

@@ -1,3 +1,4 @@
+
 var rAF = window.requestAnimationFrame	||
 	window.webkitRequestAnimationFrame	||
 	window.mozRequestAnimationFrame		||
@@ -84,9 +85,32 @@ var utils = (function () {
 	me.extend(me.style = {}, {
 		transform: _transform,
 		transitionTimingFunction: _prefixStyle('transitionTimingFunction'),
-		transitionDuration: _prefixStyle('transitionDuration'),
-		translateZ: me.hasPerspective ? ' translateZ(0)' : ''
+		transitionDuration: _prefixStyle('transitionDuration')
 	});
+
+	me.hasClass = function (e, c) {
+		var re = new RegExp("(^|\\s)" + c + "(\\s|$)");
+		return re.test(e.className);
+	};
+
+	me.addClass = function (e, c) {
+		if ( me.hasClass(e, c) ) {
+			return;
+		}
+
+		var newclass = e.className.split(' ');
+		newclass.push(c);
+		e.className = newclass.join(' ');
+	};
+
+	me.removeClass = function (e, c) {
+		if ( !me.hasClass(e, c) ) {
+			return;
+		}
+
+		var re = new RegExp("(^|\\s)" + c + "(\\s|$)", 'g');
+		e.className = e.className.replace(re, '');
+	};
 
 	me.extend(me.ease = {}, {
 		quadratic: {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
 
-<title>iScroll demo: simple</title>
+<title>iScroll demo: styled scrollbars</title>
 
 <script type="text/javascript" src="../../build/iscroll.js"></script>
 
@@ -13,7 +13,7 @@
 var myScroll;
 
 function loaded () {
-	myScroll = new iScroll('#wrapper', { mouseWheel: true });
+	myScroll = new iScroll('#wrapper', { scrollX: true, scrollbars: 'custom' });
 }
 
 document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
@@ -21,6 +21,65 @@ document.addEventListener('touchmove', function (e) { e.preventDefault(); }, fal
 </script>
 
 <style type="text/css">
+
+/* Styled scrollbars */
+
+.iScrollHorizontalScrollbar {
+	position: absolute;
+	z-index: 9999;
+	height: 16px;
+	left: 2px;
+	right: 2px;
+	bottom: 2px;
+}
+
+.iScrollHorizontalScrollbar.iScrollBothScrollbars {
+	right: 18px;
+}
+
+.iScrollVerticalScrollbar {
+	position: absolute;
+	z-index: 9999;
+	width: 16px;
+	bottom: 2px;
+	top: 2px;
+	right: 2px;
+}
+
+.iScrollVerticalScrollbar.iScrollBothScrollbars {
+	bottom: 18px;
+}
+
+.iScrollIndicator {
+	position: absolute;
+	background: #cc3f6e;
+	border-width: 1px;
+	border-style: solid;
+	border-color: #EB97B4 #7C2845 #7C2845 #EB97B4;
+	border-radius: 8px;
+}
+
+.iScrollHorizontalScrollbar .iScrollIndicator {
+	height: 100%;
+	background: -moz-linear-gradient(left,  #cc3f6e 0%, #93004e 100%);
+	background: -webkit-linear-gradient(left,  #cc3f6e 0%,#93004e 100%);
+	background: -o-linear-gradient(left,  #cc3f6e 0%,#93004e 100%);
+	background: -ms-linear-gradient(left,  #cc3f6e 0%,#93004e 100%);
+	background: linear-gradient(to right,  #cc3f6e 0%,#93004e 100%);
+}
+
+.iScrollVerticalScrollbar .iScrollIndicator {
+	width: 100%;
+	background: -moz-linear-gradient(top, #cc3f6e 0%, #93004e 100%);
+	background: -webkit-linear-gradient(top,  #cc3f6e 0%,#93004e 100%);
+	background: -o-linear-gradient(top, #cc3f6e 0%,#93004e 100%);
+	background: -ms-linear-gradient(top, #cc3f6e 0%,#93004e 100%);
+	background: linear-gradient(to bottom,  #cc3f6e 0%,#93004e 100%);
+}
+
+
+/* end */
+
 * {
 	-webkit-box-sizing: border-box;
 	-moz-box-sizing: border-box;
@@ -86,7 +145,7 @@ body {
 	position: absolute;
 	z-index: 1;
 	-webkit-tap-highlight-color: rgba(0,0,0,0);
-	width: 100%;
+	width: 2000px;
 	-webkit-transform: translateZ(0);
 	-moz-transform: translateZ(0);
 	-ms-transform: translateZ(0);

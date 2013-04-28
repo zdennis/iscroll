@@ -23,7 +23,7 @@ module.exports = function (grunt) {
 						'src/open.js',
 						'src/utils.js',
 						'src/core.js',
-						'src/lite/_initEvents.js',
+						'src/lite/*.js',
 						'src/default/_translate.js',
 						'src/default/getComputedPosition.js',
 						'src/close.js'
@@ -35,6 +35,9 @@ module.exports = function (grunt) {
 						'src/open.js',
 						'src/utils.js',
 						'src/core.js',
+						'src/default/indicator.js',
+						'src/default/transitionProp.js',
+						'src/default/_init.js',
 						'src/iphone/*.js',
 						'src/close.js'
 					]

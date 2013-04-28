@@ -7,7 +7,7 @@ function iScroll (el, options) {
 	this.options = {
 		startX: 0,
 		startY: 0,
-		scrollX: true,
+		scrollX: false,
 		scrollY: true,
 		lockDirection: true,
 		momentum: true,
@@ -23,10 +23,14 @@ function iScroll (el, options) {
 		useTransition: true,
 		useTransform: true,
 
-		mouseWheel: true,		
+		mouseWheel: false,
 		invertWheelDirection: false,
 
-		keyBindings: false
+		keyBindings: false,
+
+		scrollbars: false,			// false | true | 'default' | 'custom' | <object>
+		interactiveScrollbars: false,
+		resizeIndicator: true
 	};
 
 	for ( var i in options ) {
@@ -34,9 +38,7 @@ function iScroll (el, options) {
 	}
 
 	// Normalize options
-	if ( !this.options.HWCompositing ) {
-		utils.style.translateZ = '';
-	}
+	this.translateZ = this.options.HWCompositing && utils.hasPerspective ? ' translateZ(0)' : '';
 
 	this.options.useTransition = utils.hasTransition && this.options.useTransition;
 	this.options.useTransform = utils.hasTransform && this.options.useTransform;
@@ -55,9 +57,14 @@ function iScroll (el, options) {
 
 	this.options.bounceEasing = typeof this.options.bounceEasing == 'string' ? utils.ease[this.options.bounceEasing] || utils.ease.circular : this.options.bounceEasing;
 
-	this._initEvents();
+	// Some defaults	
+	this.x = 0;
+	this.y = 0;
+	this._events = {};
 
+	this._init();
 	this.refresh();
+
 	this.scrollTo(this.options.startX, this.options.startY);
 	this.enable();
 }
@@ -117,11 +124,6 @@ iScroll.prototype._transitionEnd = function (e) {
 	this.resetPosition(this.options.bounceTime);
 };
 
-iScroll.prototype._transitionTime = function (time) {
-	time = time || 0;
-	this.scrollerStyle[utils.style.transitionDuration] = time + 'ms';
-};
-
 iScroll.prototype._start = function (e) {
 	if ( !this.enabled ) {
 		return;
@@ -166,6 +168,10 @@ iScroll.prototype._start = function (e) {
 iScroll.prototype._move = function (e) {
 	if ( !this.enabled || !this.initiated ) {
 		return;
+	}
+
+	if ( this.options.preventDefault ) {	// increases performance on Android? TODO: check!
+		e.preventDefault();
 	}
 
 	var point		= e.touches ? e.touches[0] : e,
@@ -362,7 +368,7 @@ iScroll.prototype.enable = function () {
 };
 
 iScroll.prototype.refresh = function () {
-	var h = this.wrapper.offsetHeight;		// Force refresh
+	var rf = this.wrapper.offsetHeight;		// Force refresh
 
 	this.wrapperWidth	= this.wrapper.clientWidth;
 	this.wrapperHeight	= this.wrapper.clientHeight;
@@ -377,6 +383,33 @@ iScroll.prototype.refresh = function () {
 	this.hasVerticalScroll		= this.options.scrollY && this.maxScrollY < 0;
 
 	this.endTime		= 0;
+
+	this._execCustomEvent('refresh');
+};
+
+iScroll.prototype._addCustomEvent = function (type, fn) {
+	if ( !this._events[type] ) {
+		this._events[type] = [];
+	}
+
+	this._events[type].push(fn);
+};
+
+iScroll.prototype._execCustomEvent = function (type) {
+	if ( !this._events[type] ) {
+		return;
+	}
+
+	var i = 0,
+		l = this._events[type].length;
+
+	if ( !l ) {
+		return;
+	}
+
+	for ( ; i < l; i++ ) {
+		this._events[type][i].call(this);
+	}
 };
 
 iScroll.prototype.scrollBy = function (x, y, time) {
@@ -391,7 +424,7 @@ iScroll.prototype.scrollTo = function (x, y, time, easing) {
 	easing = easing || utils.ease.circular;
 
 	if ( !time || (this.options.useTransition && easing.style) ) {
-		this.scrollerStyle[utils.style.transitionTimingFunction] = easing.style;
+		this._transitionTimingFunction(easing.style);
 		this._transitionTime(time);
 		this._translate(x, y);
 	} else {
