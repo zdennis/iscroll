@@ -127,12 +127,7 @@ iScroll.prototype._transitionEnd = function (e) {
 };
 
 iScroll.prototype._start = function (e) {
-	if ( !this.enabled ) {
-		return;
-	}
-
-	// stick with one event type (touches only or mouse only)
-	if ( this.initiated && e.type !== this.initiated ) {
+	if ( !this.enabled || (this.initiated && utils.eventType[e.type] !== this.initiated) ) {
 		return;
 	}
 
@@ -143,7 +138,7 @@ iScroll.prototype._start = function (e) {
 	var point = e.touches ? e.touches[0] : e,
 		pos;
 
-	this.initiated	= e.type;
+	this.initiated	= utils.eventType[e.type];
 	this.moved		= false;
 	this.distX		= 0;
 	this.distY		= 0;
@@ -168,7 +163,7 @@ iScroll.prototype._start = function (e) {
 };
 
 iScroll.prototype._move = function (e) {
-	if ( !this.enabled || !this.initiated ) {
+	if ( !this.enabled || utils.eventType[e.type] !== this.initiated ) {
 		return;
 	}
 
@@ -250,7 +245,7 @@ iScroll.prototype._move = function (e) {
 };
 
 iScroll.prototype._end = function (e) {
-	if ( !this.enabled || !this.initiated ) {
+	if ( !this.enabled || utils.eventType[e.type] !== this.initiated ) {
 		return;
 	}
 
@@ -264,7 +259,7 @@ iScroll.prototype._end = function (e) {
 		easing = '';
 
 	this.isInTransition = 0;
-	this.initiated = false;
+	this.initiated = 0;
 	this.endTime = utils.getTime();
 
 	// reset if we are outside of the boundaries
@@ -330,8 +325,14 @@ iScroll.prototype._animate = function (destX, destY, duration, easingFn) {
 };
 
 iScroll.prototype._resize = function () {
-	this.refresh();
-	this.resetPosition();
+	var that = this;
+
+	clearTimeout(this.resizeTimeout);
+
+	this.resizeTimeout = setTimeout(function () {
+		that.refresh();
+		that.resetPosition();
+	}, 60);
 };
 
 iScroll.prototype.resetPosition = function (time) {
