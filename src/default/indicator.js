@@ -87,6 +87,16 @@ iScroll.prototype._initScrollbars = function () {
 			this.indicator2.refresh();
 		}
 	});
+
+	this._addCustomEvent('destroy', function () {
+		if ( this.indicator1 ) {
+			this.indicator1._destroy();
+		}
+
+		if ( this.indicator2 ) {
+			this.indicator2._destroy();
+		}
+	});	
 };
 
 function Indicator (scroller, options) {
@@ -142,6 +152,22 @@ Indicator.prototype.handleEvent = function (e) {
 		case 'mousecancel':
 			this._end(e);
 			break;
+	}
+};
+
+Indicator.prototype._destroy = function () {
+	if ( this.options.interactive ) {
+		utils.removeEvent(this.indicator, 'touchstart', this);
+		utils.removeEvent(this.indicator, 'MSPointerDown', this);
+		utils.removeEvent(this.indicator, 'mousedown', this);
+
+		utils.removeEvent(window, 'touchmove', this);
+		utils.removeEvent(window, 'MSPointerMove', this);
+		utils.removeEvent(window, 'mousemove', this);
+
+		utils.removeEvent(window, 'touchend', this);
+		utils.removeEvent(window, 'MSPointerMove', this);
+		utils.removeEvent(window, 'mouseup', this);
 	}
 };
 
@@ -216,18 +242,26 @@ Indicator.prototype.refresh = function () {
 	if ( this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ) {
 		utils.addClass(this.wrapper, 'iScrollBothScrollbars');
 		utils.removeClass(this.wrapper, 'iScrollLoneScrollbar');
+
+		if ( this.options.defaultScrollbars ) {
+			if ( this.options.listenX ) {
+				this.wrapper.style.right = '8px';
+			} else {
+				this.wrapper.style.bottom = '8px';
+			}
+		}
 	} else {
 		utils.removeClass(this.wrapper, 'iScrollBothScrollbars');
 		utils.addClass(this.wrapper, 'iScrollLoneScrollbar');
-	}
 
-//if ( this.options.listenX ) {
-//	this.wrapper.style.right = this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ? '8px' : '2px';
-//	this.wrapper.style.display = this.scroller.hasHorizontalScroll ? 'block' : 'none';
-//} else {
-//	this.wrapper.style.bottom = this.scroller.hasHorizontalScroll && this.scroller.hasVerticalScroll ? '8px' : '2px';
-//	this.wrapper.style.display = this.scroller.hasVerticalScroll ? 'block' : 'none';
-//}
+		if ( this.options.defaultScrollbars ) {
+			if ( this.options.listenX ) {
+				this.wrapper.style.right = '2px';
+			} else {
+				this.wrapper.style.bottom = '2px';
+			}
+		}
+	}
 
 	var r = this.wrapper.offsetHeight;	// force refresh
 

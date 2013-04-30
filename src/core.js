@@ -113,6 +113,8 @@ iScroll.prototype.handleEvent = function (e) {
 
 iScroll.prototype.destroy = function () {
 	this._initEvents(true);
+
+	this._execCustomEvent('destroy');
 };
 
 iScroll.prototype._transitionEnd = function (e) {
