@@ -12,6 +12,11 @@ iScroll.prototype._translate = function (x, y) {
 	this.x = x;
 	this.y = y;
 
-	this.indicator1 && this.indicator1.updatePosition();
-	this.indicator2 && this.indicator2.updatePosition();
+	if ( this.indicator1 ) {	// usually the vertical
+		this.indicator1.updatePosition();
+	}
+
+	if ( this.indicator2 ) {
+		this.indicator2.updatePosition();
+	}
 };

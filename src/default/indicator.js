@@ -3,7 +3,7 @@ function createDefaultScrollbar (direction, interactive, type) {
 	var scrollbar = document.createElement('div'),
 		indicator = document.createElement('div');
 
-	if ( type == 'default' ) {
+	if ( type === true ) {
 		scrollbar.style.cssText = 'position:absolute;z-index:9999';
 		indicator.style.cssText = '-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box;position:absolute;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.9);border-radius:3px';
 	}
@@ -11,13 +11,13 @@ function createDefaultScrollbar (direction, interactive, type) {
 	indicator.className = 'iScrollIndicator';
 
 	if ( direction == 'h' ) {
-		if ( type == 'default' ) {
+		if ( type === true ) {
 			scrollbar.style.cssText += ';height:7px;left:2px;right:2px;bottom:0';
 			indicator.style.height = '100%';
 		}
 		scrollbar.className = 'iScrollHorizontalScrollbar';
 	} else {
-		if ( type == 'default' ) {
+		if ( type === true ) {
 			scrollbar.style.cssText += ';width:7px;bottom:2px;top:2px;right:1px';
 			indicator.style.width = '100%';
 		}
@@ -79,8 +79,13 @@ iScroll.prototype._initScrollbars = function () {
 	}
 
 	this._addCustomEvent('refresh', function () {
-		this.indicator1 && this.indicator1.refresh();
-		this.indicator2 && this.indicator2.refresh();
+		if ( this.indicator1 ) {
+			this.indicator1.refresh();
+		}
+
+		if ( this.indicator2 ) {
+			this.indicator2.refresh();
+		}
 	});
 };
 
@@ -95,7 +100,9 @@ function Indicator (scroller, options) {
 		listenY: true,
 		interactive: false,
 		resize: true,
-		defaultScrollbars: false
+		defaultScrollbars: false,
+		speedRatioX: 0,
+		speedRatioY: 0
 	};
 
 	for ( var i in options ) {
@@ -226,18 +233,27 @@ Indicator.prototype.refresh = function () {
 
 	if ( this.options.listenX ) {
 		this.wrapperWidth = this.wrapper.clientWidth;
-		this.indicatorWidth = this.options.resize ? Math.max(Math.round(this.wrapperWidth * this.wrapperWidth / this.scroller.scrollerWidth), 8) : 20;
-		this.indicatorStyle.width = this.indicatorWidth + 'px';
+		if ( this.options.resize ) {
+			this.indicatorWidth = Math.max(Math.round(this.wrapperWidth * this.wrapperWidth / this.scroller.scrollerWidth), 8);
+			this.indicatorStyle.width = this.indicatorWidth + 'px';
+		} else {
+			this.indicatorWidth = this.indicator.clientWidth;
+		}
 		this.maxPosX = this.wrapperWidth - this.indicatorWidth;
-		this.sizeRatioX = this.scroller.maxScrollX && (this.maxPosX / this.scroller.maxScrollX);	
+		this.sizeRatioX = this.options.speedRatioX || (this.scroller.maxScrollX && (this.maxPosX / this.scroller.maxScrollX));	
 	}
 
 	if ( this.options.listenY ) {
 		this.wrapperHeight = this.wrapper.clientHeight;
-		this.indicatorHeight = this.options.resize ? Math.max(Math.round(this.wrapperHeight * this.wrapperHeight / this.scroller.scrollerHeight), 8) : 20;
-		this.indicatorStyle.height = this.indicatorHeight + 'px';
+		if ( this.options.resize ) {
+			this.indicatorHeight = Math.max(Math.round(this.wrapperHeight * this.wrapperHeight / this.scroller.scrollerHeight), 8);
+			this.indicatorStyle.height = this.indicatorHeight + 'px';
+		} else {
+			this.indicatorHeight = this.indicator.clientHeight;
+		}
+
 		this.maxPosY = this.wrapperHeight - this.indicatorHeight;
-		this.sizeRatioY = this.scroller.maxScrollY && (this.maxPosY / this.scroller.maxScrollY);
+		this.sizeRatioY = this.options.speedRatioY || (this.scroller.maxScrollY && (this.maxPosY / this.scroller.maxScrollY));
 	}
 
 	this.updatePosition();
@@ -247,16 +263,18 @@ Indicator.prototype.updatePosition = function () {
 	var x = Math.round(this.sizeRatioX * this.scroller.x) || 0,
 		y = Math.round(this.sizeRatioY * this.scroller.y) || 0;
 
-	if ( x < 0 ) {
-		x = 0;
-	} else if ( x > this.maxPosX ) {
-		x = this.maxPosX;
-	}
+	if ( !this.options.ignoreBoundaries ) {
+		if ( x < 0 ) {
+			x = 0;
+		} else if ( x > this.maxPosX ) {
+			x = this.maxPosX;
+		}
 
-	if ( y < 0 ) {
-		y = 0;
-	} else if ( y > this.maxPosY ) {
-		y = this.maxPosY;
+		if ( y < 0 ) {
+			y = 0;
+		} else if ( y > this.maxPosY ) {
+			y = this.maxPosY;
+		}		
 	}
 
 	this.x = x;

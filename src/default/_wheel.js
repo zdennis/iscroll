@@ -12,7 +12,6 @@ iScroll.prototype._wheel = function (e) {
 		wheelDeltaX = wheelDeltaY = e.wheelDelta / 10;
 	} else if ( 'detail' in e ) {
 		wheelDeltaX = wheelDeltaY = -e.detail * 3;
-		console.log(e)
 	} else {
 		return;
 	}

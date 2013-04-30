@@ -28,7 +28,7 @@ function iScroll (el, options) {
 
 		keyBindings: false,
 
-		scrollbars: false,			// false | true | 'default' | 'custom' | <object>
+		scrollbars: false,			// false | true | 'custom' | <object>
 		interactiveScrollbars: false,
 		resizeIndicator: true
 	};

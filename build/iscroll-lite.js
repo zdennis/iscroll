@@ -196,7 +196,7 @@ function iScroll (el, options) {
 
 		keyBindings: false,
 
-		scrollbars: false,			// false | true | 'default' | 'custom' | <object>
+		scrollbars: false,			// false | true | 'custom' | <object>
 		interactiveScrollbars: false,
 		resizeIndicator: true
 	};
@@ -600,6 +600,7 @@ iScroll.prototype.scrollTo = function (x, y, time, easing) {
 	}
 };
 
+
 iScroll.prototype._init = function () {
 
 	this._initEvents();
@@ -667,8 +668,13 @@ iScroll.prototype._translate = function (x, y) {
 	this.x = x;
 	this.y = y;
 
-	this.indicator1 && this.indicator1.updatePosition();
-	this.indicator2 && this.indicator2.updatePosition();
+	if ( this.indicator1 ) {	// usually the vertical
+		this.indicator1.updatePosition();
+	}
+
+	if ( this.indicator2 ) {
+		this.indicator2.updatePosition();
+	}
 };
 
 
@@ -689,5 +695,8 @@ iScroll.prototype.getComputedPosition = function () {
 };
 
 
+iScroll.ease = utils.ease;
+
 return iScroll;
+
 })(window, document, Math);
