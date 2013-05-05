@@ -210,9 +210,12 @@ function iScroll (el, options) {
 
 		keyBindings: false,
 
-		scrollbars: false,			// false | true | 'custom' | <object>
+		scrollbars: false,
 		interactiveScrollbars: false,
-		resizeIndicator: true
+		resizeIndicator: true,
+
+		snap: false,
+		snapThreshold: 10,
 	};
 
 	for ( var i in options ) {
@@ -324,6 +327,8 @@ iScroll.prototype._start = function (e) {
 	this.moved		= false;
 	this.distX		= 0;
 	this.distY		= 0;
+	this.directionX = 0;
+	this.directionY = 0;
 	this.directionLocked = 0;
 
 	this._transitionTime();
@@ -340,6 +345,8 @@ iScroll.prototype._start = function (e) {
 
 	this.startX = this.x;
 	this.startY = this.y;
+	this.absStartX = this.x;
+	this.absStartY = this.y;
 	this.pointX = point.pageX;
 	this.pointY = point.pageY;
 };
@@ -415,6 +422,9 @@ iScroll.prototype._move = function (e) {
 		newY = this.options.bounce ? this.y + deltaY / 3 : newY > 0 ? 0 : this.maxScrollY;
 	}
 
+	this.directionX = deltaX > 0 ? -1 : deltaX < 0 ? 1 : 0;
+	this.directionY = deltaY > 0 ? -1 : deltaY < 0 ? 1 : 0;
+
 	this.moved = true;
 
 	if ( timestamp - this.startTime > 300 ) {
@@ -437,7 +447,7 @@ iScroll.prototype._end = function (e) {
 		duration = utils.getTime() - this.startTime,
 		newX = Math.round(this.x),
 		newY = Math.round(this.y),
-		time,
+		time = 0,
 		easing = '';
 
 	this.isInTransition = 0;
@@ -464,10 +474,27 @@ iScroll.prototype._end = function (e) {
 		this.isInTransition = 1;
 	}
 
+	if ( this.options.snap ) {
+		var snap = this._nearestSnap(newX, newY);
+		this.currentPage = snap;
+		newX = snap.x;
+		newY = snap.y;
+		time = this.options.snapSpeed || Math.max(
+			Math.max(
+				Math.min(Math.abs(newX - this.x), 1000),
+				Math.min(Math.abs(newY - this.y), 1000)
+			),
+		300);
+
+		easing = this.options.bounceEasing;
+	}
+
 	if ( newX != this.x || newY != this.y ) {
+		// change easing function when scroller goes out of the boundaries
 		if ( newX > 0 || newX < this.maxScrollX || newY > 0 || newY < this.maxScrollY ) {
 			easing = utils.ease.quadratic;
 		}
+
 		this.scrollTo(newX, newY, time, easing);
 	}
 };
@@ -597,12 +624,12 @@ iScroll.prototype._execCustomEvent = function (type) {
 	}
 };
 
-iScroll.prototype.scrollBy = function (x, y, time) {
+iScroll.prototype.scrollBy = function (x, y, time, easing) {
 	x = this.x + x;
 	y = this.y + y;
 	time = time || 0;
 
-	this.scrollTo(x, y, time);
+	this.scrollTo(x, y, time, easing);
 };
 
 iScroll.prototype.scrollTo = function (x, y, time, easing) {
@@ -623,7 +650,11 @@ iScroll.prototype._init = function () {
 	this._initEvents();
 
 	if ( this.options.scrollbars || this.options.indicators ) {
-		this._initScrollbars();
+		this._initIndicators();
+	}
+
+	if ( this.options.snap ) {
+		this._initSnap();
 	}
 
 };
@@ -635,12 +666,10 @@ iScroll.prototype._initEvents = function (remove) {
 	eventType(window, 'orientationchange', this);
 	eventType(window, 'resize', this);
 
-	if ( utils.hasTouch ) {
-		eventType(this.wrapper, 'touchstart', this);
-		eventType(window, 'touchmove', this);
-		eventType(window, 'touchcancel', this);
-		eventType(window, 'touchend', this);
-	}
+	eventType(this.wrapper, 'mousedown', this);
+	eventType(window, 'mousemove', this);
+	eventType(window, 'mousecancel', this);
+	eventType(window, 'mouseup', this);
 
 	if ( utils.hasPointer ) {
 		eventType(this.wrapper, 'MSPointerDown', this);
@@ -649,10 +678,12 @@ iScroll.prototype._initEvents = function (remove) {
 		eventType(window, 'MSPointerUp', this);
 	}
 
-	eventType(this.wrapper, 'mousedown', this);
-	eventType(window, 'mousemove', this);
-	eventType(window, 'mousecancel', this);
-	eventType(window, 'mouseup', this);
+	if ( utils.hasTouch ) {
+		eventType(this.wrapper, 'touchstart', this);
+		eventType(window, 'touchmove', this);
+		eventType(window, 'touchcancel', this);
+		eventType(window, 'touchend', this);
+	}
 
 	eventType(this.scroller, 'transitionend', this);
 	eventType(this.scroller, 'webkitTransitionEnd', this);
@@ -843,7 +874,7 @@ function createDefaultScrollbar (direction, interactive, type) {
 	return scrollbar;
 }
 
-iScroll.prototype._initScrollbars = function () {
+iScroll.prototype._initIndicators = function () {
 	var interactive = this.options.interactiveScrollbars,
 		defaultScrollbars = typeof this.options.scrollbars != 'object',
 		indicator1,
@@ -1146,6 +1177,143 @@ Indicator.prototype._pos = function (x, y) {
 	}
 
 	this.scroller.scrollTo(Math.round(x / this.sizeRatioX), Math.round(y / this.sizeRatioY));
+};
+
+
+iScroll.prototype._initSnap = function () {
+	this.pages = [];
+	this.currentPage = {};
+
+	this._addCustomEvent('refresh', function () {
+		var i = 0, l,
+			m = 0, n,
+			cx, cy,
+			x = 0, y,
+			stepX = this.options.snapStepX || this.wrapperWidth,
+			stepY = this.options.snapStepY || this.wrapperHeight,
+			el;
+
+		if ( this.options.snap === true ) {
+			cx = Math.round( stepX / 2 );
+			cy = Math.round( stepY / 2 );
+
+			while ( x >= -this.scrollerWidth ) {
+				this.pages[i] = [];
+				l = 0;
+				y = 0;
+
+				while ( y >= -this.scrollerHeight ) {
+					this.pages[i][l] = {
+						x: Math.max(x, this.maxScrollX),
+						y: Math.max(y, this.maxScrollY),
+						cx: x - cx,
+						cy: y - cy
+					};
+
+					y -= stepY;
+					l++;
+				}
+
+				x -= stepX;
+				i++;
+			}
+		} else {
+			el = this.options.snap;
+			l = el.length;
+			n = -1;
+
+			for ( ; i < l; i++ ) {
+				if ( el[i].offsetLeft === 0 ) {
+					m = 0;
+					n++;
+				}
+
+				if ( !this.pages[m] ) {
+					this.pages[m] = [];
+				}
+
+				x = Math.max(-el[i].offsetLeft, this.maxScrollX);
+				y = Math.max(-el[i].offsetTop, this.maxScrollY);
+				cx = x - Math.round(el[i].offsetWidth / 2);
+				cy = y - Math.round(el[i].offsetHeight / 2);
+
+				this.pages[m][n] = {
+					x: x,
+					y: y,
+					cx: cx,
+					cy: cy
+				};
+
+				m++;
+			}
+		}
+
+		this.currentPage = {
+			x: this.pages[0][0].x,
+			x: this.pages[0][0].y,
+			pageX: 0,
+			pageY: 0
+		};
+
+	});
+};
+
+iScroll.prototype._nearestSnap = function (x, y) {
+	var i = 0,
+		l = this.pages.length,
+		m = 0;
+
+	if ( Math.abs(x - this.absStartX) < this.options.snapThreshold &&
+		Math.abs(y - this.absStartY) < this.options.snapThreshold ) {
+		return this.currentPage;
+	}
+
+	for ( ; i < l; i++ ) {
+		if ( x >= this.pages[i][0].cx ) {
+			x = this.pages[i][0].x;
+			break;
+		}
+	}
+
+	l = this.pages[i].length;
+
+	for ( ; m < l; m++ ) {
+		if ( y >= this.pages[0][m].cy ) {
+			y = this.pages[0][m].y;
+			break;
+		}
+	}
+
+	if ( i == this.currentPage.pageX ) {
+		i += this.directionX;
+
+		if ( i < 0 ) {
+			i = 0;
+		} else if ( i >= this.pages.length ) {
+			i = this.pages.length - 1;
+		}
+
+		x = this.pages[i][0].x;
+	}
+
+	if ( m == this.currentPage.pageY ) {
+		m += this.directionY;
+
+		if ( m < 0 ) {
+			m = 0;
+		} else if ( m >= this.pages[0].length ) {
+			m = this.pages[0].length - 1;
+		}
+
+		y = this.pages[0][m].y;
+	}
+
+	return {
+		x: x,
+		y: y,
+		pageX: i,
+		pageY: m
+	};
 };
 
 

@@ -5,12 +5,10 @@ iScroll.prototype._initEvents = function (remove) {
 	eventType(window, 'orientationchange', this);
 	eventType(window, 'resize', this);
 
-	if ( utils.hasTouch ) {
-		eventType(this.wrapper, 'touchstart', this);
-		eventType(window, 'touchmove', this);
-		eventType(window, 'touchcancel', this);
-		eventType(window, 'touchend', this);
-	}
+	eventType(this.wrapper, 'mousedown', this);
+	eventType(window, 'mousemove', this);
+	eventType(window, 'mousecancel', this);
+	eventType(window, 'mouseup', this);
 
 	if ( utils.hasPointer ) {
 		eventType(this.wrapper, 'MSPointerDown', this);
@@ -19,10 +17,12 @@ iScroll.prototype._initEvents = function (remove) {
 		eventType(window, 'MSPointerUp', this);
 	}
 
-	eventType(this.wrapper, 'mousedown', this);
-	eventType(window, 'mousemove', this);
-	eventType(window, 'mousecancel', this);
-	eventType(window, 'mouseup', this);
+	if ( utils.hasTouch ) {
+		eventType(this.wrapper, 'touchstart', this);
+		eventType(window, 'touchmove', this);
+		eventType(window, 'touchcancel', this);
+		eventType(window, 'touchend', this);
+	}
 
 	eventType(this.scroller, 'transitionend', this);
 	eventType(this.scroller, 'webkitTransitionEnd', this);

@@ -33,7 +33,7 @@ function createDefaultScrollbar (direction, interactive, type) {
 	return scrollbar;
 }
 
-iScroll.prototype._initScrollbars = function () {
+iScroll.prototype._initIndicators = function () {
 	var interactive = this.options.interactiveScrollbars,
 		defaultScrollbars = typeof this.options.scrollbars != 'object',
 		indicator1,

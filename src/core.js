@@ -28,9 +28,12 @@ function iScroll (el, options) {
 
 		keyBindings: false,
 
-		scrollbars: false,			// false | true | 'custom' | <object>
+		scrollbars: false,
 		interactiveScrollbars: false,
-		resizeIndicator: true
+		resizeIndicator: true,
+
+		snap: false,
+		snapThreshold: 10,
 	};
 
 	for ( var i in options ) {
@@ -142,6 +145,8 @@ iScroll.prototype._start = function (e) {
 	this.moved		= false;
 	this.distX		= 0;
 	this.distY		= 0;
+	this.directionX = 0;
+	this.directionY = 0;
 	this.directionLocked = 0;
 
 	this._transitionTime();
@@ -158,6 +163,8 @@ iScroll.prototype._start = function (e) {
 
 	this.startX = this.x;
 	this.startY = this.y;
+	this.absStartX = this.x;
+	this.absStartY = this.y;
 	this.pointX = point.pageX;
 	this.pointY = point.pageY;
 };
@@ -233,6 +240,9 @@ iScroll.prototype._move = function (e) {
 		newY = this.options.bounce ? this.y + deltaY / 3 : newY > 0 ? 0 : this.maxScrollY;
 	}
 
+	this.directionX = deltaX > 0 ? -1 : deltaX < 0 ? 1 : 0;
+	this.directionY = deltaY > 0 ? -1 : deltaY < 0 ? 1 : 0;
+
 	this.moved = true;
 
 	if ( timestamp - this.startTime > 300 ) {
@@ -255,7 +265,7 @@ iScroll.prototype._end = function (e) {
 		duration = utils.getTime() - this.startTime,
 		newX = Math.round(this.x),
 		newY = Math.round(this.y),
-		time,
+		time = 0,
 		easing = '';
 
 	this.isInTransition = 0;
@@ -282,10 +292,27 @@ iScroll.prototype._end = function (e) {
 		this.isInTransition = 1;
 	}
 
+	if ( this.options.snap ) {
+		var snap = this._nearestSnap(newX, newY);
+		this.currentPage = snap;
+		newX = snap.x;
+		newY = snap.y;
+		time = this.options.snapSpeed || Math.max(
+			Math.max(
+				Math.min(Math.abs(newX - this.x), 1000),
+				Math.min(Math.abs(newY - this.y), 1000)
+			),
+		300);
+
+		easing = this.options.bounceEasing;
+	}
+
 	if ( newX != this.x || newY != this.y ) {
+		// change easing function when scroller goes out of the boundaries
 		if ( newX > 0 || newX < this.maxScrollX || newY > 0 || newY < this.maxScrollY ) {
 			easing = utils.ease.quadratic;
 		}
+
 		this.scrollTo(newX, newY, time, easing);
 	}
 };
@@ -415,12 +442,12 @@ iScroll.prototype._execCustomEvent = function (type) {
 	}
 };
 
-iScroll.prototype.scrollBy = function (x, y, time) {
+iScroll.prototype.scrollBy = function (x, y, time, easing) {
 	x = this.x + x;
 	y = this.y + y;
 	time = time || 0;
 
-	this.scrollTo(x, y, time);
+	this.scrollTo(x, y, time, easing);
 };
 
 iScroll.prototype.scrollTo = function (x, y, time, easing) {
