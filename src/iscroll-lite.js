@@ -513,7 +513,10 @@ iScroll.prototype = {
 		that.wrapperH = that.wrapper.clientHeight;
 
 		that.scrollerW = that.scroller.offsetWidth;
-		that.scrollerH = that.scroller.offsetHeight;
+
+		var marginY = that.scroller.offsetParent ? (that.scroller.offsetParent.scrollHeight - that.scroller.offsetHeight) : 0;
+		that.scrollerH = that.scroller.offsetHeight + marginY;
+
 		that.maxScrollX = that.wrapperW - that.scrollerW;
 		that.maxScrollY = that.wrapperH - that.scrollerH;
 		that.dirX = 0;
